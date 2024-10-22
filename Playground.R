@@ -53,14 +53,6 @@ ggplot(incidentData,aes(x=log(DamageAmount))) + geom_histogram()
 propertyDamageData <- filter(incidentData,DamageAmount>0)
 propertyDamageData$logDamage <- log(propertyDamageData$DamageAmount)
 
-#scatterplot of both
-ggplot(propertyDamageData,aes(x=day_of_year,y=logDamage)) + geom_point() + theme_classic()
-
-shapiro.test(propertyDamageData$logDamage)
-
-#correlation between 
-cor.test(incidentData$day_of_year, incidentData$DamageAmount)
-
 #Property types frequency
 
 ggplot(incidentData,aes(x=PropertyTypeID,y=DamageAmount)) +geom_col()
@@ -69,5 +61,3 @@ ggplot(incidentData,aes(x=PropertyTypeID,y=DamageAmount)) +geom_col()
 incidentData2023 <- incidentData[format(incidentData$IncidentDate, "%Y") == "2023", ]
 
 ggplot(incidentData2023,aes(x=PropertyTypeID,y=DamageAmount)) +geom_col()
-
-
