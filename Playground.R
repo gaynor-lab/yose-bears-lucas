@@ -61,3 +61,5 @@ ggplot(incidentData,aes(x=PropertyTypeID,y=DamageAmount)) +geom_col()
 incidentData2023 <- incidentData[format(incidentData$IncidentDate, "%Y") == "2023", ]
 
 ggplot(incidentData2023,aes(x=PropertyTypeID,y=DamageAmount)) +geom_col()
+
+
