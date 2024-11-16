@@ -1,7 +1,14 @@
+library(dplyr)
+library(ggplot2)
+
 #A lesson in Time Series
 #Based on Forecasting: Principles and Practice
 #Merging datasets and running a few basic regressions with Property damage cost as the 
 #forecasted variable
+
+
+
+incidentData <- read.csv("/Users/lucasbra/Downloads/Gaynor Lab Honours/Honors Thesis/Honors Thesis Project/yose-bears-lucas/cleaned_incidents_for_Lucas.csv",stringsAsFactors = TRUE)
 
 #Replace property type IDs with their corresponding strings
 
