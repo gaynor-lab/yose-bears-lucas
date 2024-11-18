@@ -3,14 +3,20 @@
 #Merging datasets and running a few basic regressions with Property damage cost as the 
 #forecasted variable
 
+library(readr)
 library(dplyr)
 library(ggplot2)
 library(lubridate)
+library(tidyr)
 
 
 incidentData <- read.csv("/Users/lucasbra/Downloads/Gaynor Lab Honours/Honors Thesis/Honors Thesis Project/yose-bears-lucas/cleaned_incidents_for_Lucas.csv",stringsAsFactors = TRUE)
 bear_data <- read.csv("/Users/lucasbra/Downloads/Gaynor Lab Honours/Honors Thesis/Honors Thesis Project/yose-bears-lucas/bearID_incidents.csv",stringsAsFactors = TRUE)
 climate_data <- read.csv("/Users/lucasbra/Downloads/Gaynor Lab Honours/Honors Thesis/Honors Thesis Project/yose-bears-lucas/3825445.csv" , stringsAsFactors = TRUE)
+
+#Reformat Climate Data
+
+
 
 #Replace property type IDs with their corresponding strings
 
@@ -83,4 +89,6 @@ merged_data <- merge(ID_incident_data, climate_data, by = "DATE", all.x = TRUE)
 # View the merged data to check the results
 head(merged_data)
 
+#currently has ~3 sets of climate data per incident because of 3 stations. Also has
+#duplicate incidents if more than one property type is destroyed.
 
