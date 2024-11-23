@@ -61,6 +61,6 @@ reshaped_climate_data$DATE <- as.character(reshaped_climate_data$DATE)
 # Step 3: Merge the two data frames based on the 'MonthYear' column
 merged_data <- merge(ID_incident_data, reshaped_climate_data, by = "DATE",all.x = TRUE)
 
-#currently has ~3 sets of climate data per incident because of 3 stations. Also has
 #duplicate incidents if more than one property type is destroyed.
+
 
