@@ -1,21 +1,26 @@
-#A lesson in Time Series
-#Based on Forecasting: Principles and Practice
-#Merging datasets and running a few basic regressions with Property damage cost as the 
-#forecasted variable
+#Merging and cleaning into nice dataframe
 
-library(readr)
-library(dplyr)
-library(ggplot2)
-library(lubridate)
-library(tidyr)
+#=== Dataframes I'll need
+# First read in data frames I'll need. Climate, incident, bear ID, bears red bear dead bear, 
 
+library(tidyverse)
 
-incidentData <- read.csv("/Users/lucasbra/Downloads/Gaynor Lab Honours/Honors Thesis/Honors Thesis Project/yose-bears-lucas/cleaned_incidents_for_Lucas.csv",stringsAsFactors = TRUE)
-bear_data <- read.csv("/Users/lucasbra/Downloads/Gaynor Lab Honours/Honors Thesis/Honors Thesis Project/yose-bears-lucas/bearID_incidents.csv",stringsAsFactors = TRUE)
-climate_data <- read.csv("/Users/lucasbra/Downloads/Gaynor Lab Honours/Honors Thesis/Honors Thesis Project/yose-bears-lucas/3825445.csv" , stringsAsFactors = TRUE)
+getwd()
+
+incidentData <- read.csv("./data_cleaned/cleaned_incidents_for_Lucas.csv",stringsAsFactors = TRUE)
+bear_data <- read.csv("./data_raw/bearID_incidents.csv",stringsAsFactors = TRUE)
+climate_data <- read.csv("./data_raw/3825445.csv" , stringsAsFactors = TRUE)
+RBDB_data <- read.csv("./data_raw/RBDB Data 1995-2023.csv", stringsAsFactors = TRUE)
+acorn_data <- read.csv("./data_raw/Yosemite_acorn_data.csv", stringsAsFactors = TRUE)
+
+# Merge the data frames on the common variable 'IncidentID'
+ID_incident_data <- merge(incidentData, bear_data, by = c("IncidentID","IncidentDate","IncidentDescription"), all.x = TRUE, no.dups = TRUE)
+
+?merge
 
 #Reformat Climate Data. Difficult because some weather stations don't have certain months
 
+?pivot_wider()
 
 # Pivot data wider by station, including attributes
 reshaped_climate_data <- climate_data %>%
@@ -28,7 +33,7 @@ reshaped_climate_data <- climate_data %>%
 
 #Replace property type IDs with their corresponding strings
 
-incidentData <- incidentData %>%
+ID_incident_data <- ID_incident_data %>%
   mutate(PropertyTypeID = case_when(
     PropertyTypeID == 11 ~ "Tent",
     PropertyTypeID == 12 ~ "Pack",
@@ -44,22 +49,18 @@ incidentData <- incidentData %>%
     TRUE ~ NA_character_  # To handle any other cases
   ))
 
-# Merge the data frames on the common variable 'IncidentID'
-ID_incident_data <- merge(incidentData, bear_data, by = "IncidentID")
 
-#Pull month out of merged_data so I can add monthly climate data
+#Pull month out of merged_data, reduce duplicate incident IDs, count all incidents in a month.
 
 # Assuming your data frames are 'incidents' and 'climate'
 
 # Step 1: Extract month and year from the 'IncidentDate' column in 'incidents'
-ID_incident_data$IncidentDate.x <- as.Date(ID_incident_data$IncidentDate.x, format = "%Y-%m-%d")  # Ensure correct date format
+ID_incident_data$IncidentDate.x <- as.Date(ID_incident_data$IncidentDate, format = "%Y-%m-%d")  # Ensure correct date format
 ID_incident_data$DATE <- format(ID_incident_data$IncidentDate.x, "%Y-%m")  # Convert to "Mon-YY" format (e.g., "Feb-10")
 
 # Step 2: Ensure 'MonthYear' in 'climate' data is also character type for merging
 reshaped_climate_data$DATE <- as.character(reshaped_climate_data$DATE)
 
-# Step 3: Merge the two data frames based on the 'MonthYear' column
-merged_data <- merge(ID_incident_data, reshaped_climate_data, by = "DATE",all.x = TRUE)
 
 #duplicate incidents if more than one property type is destroyed.
 
