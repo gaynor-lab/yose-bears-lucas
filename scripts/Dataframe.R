@@ -73,43 +73,18 @@ monthly_incidents <- ID_incident_data %>%
   group_by(Month) %>%         #Group incidents by month
   summarise(number_incidents=n())      #Display number of observations with matching month in new column "number_incidents"
 
-monthly_incidents$year <- monthly_incidents$Month %>% 
-  as.character() %>% #set factor to character
-  paste0("-01") %>%  #append a day so you can have it in Date format
-  as.Date(format="%Y-%m-%d") %>% #Switch it to a date
-  format("%Y") %>% #Pull out the year
-  as.factor()   #Make it a factor for ease of merging and group by functionality
-
-# Check output
-str(monthly_incidents)
-
-ggplot(monthly_incidents,aes(x=Month,y=number_incidents)) + geom_point()
-#This is a very cool initial plot because you can see the huge spike of incidents in 2010 that Katie was talking about. Do we cut this data or look further back? If we're including problem bears as an analysis we can look further back.
-
-# Step 2: Ensure 'MonthYear' in 'climate' data is also character type for merging
-#reshaped_climate_data$DATE <- as.Date(reshaped_climate_data$DATE,format="%Y-%m",optional )
-
-str(reshaped_climate_data)
-
-# Merge monthly climate data to monthly incident data
-
-incident_climate_data <- merge(monthly_incidents, reshaped_climate_data, by.x = "Month", by.y = "DATE", all.x = TRUE)
-
-# Check output
-str(incident_climate_data)
-summary(incident_climate_data)
-
-#merge acorn data
-acorn_data <- acorn_data[-1,] %>% 
-  rename(year=YOSEMITE.VALLEY..ln.transformed.mean.data.,chrysolepis=X,kelloggii=X.1)
-
-
-incident_climate_data <- incident_climate_data %>% 
-  merge(acorn_data, by="year", all.x = TRUE)
+table(monthly_incidents$Month)   #check for outliers. I don't see any.
 
 #Add Red Bear Dead Bear Data
 
 str(RBDB_data)
+
+RBDB_data$DATE <- as.character(RBDB_data$DATE)  #Switch to character to correct cell
+
+table(RBDB_data$DATE)   #Identify outlier typo year 2109
+which(RBDB_data$DATE=="2109-06-02")   #row 448. Likely a typo of 2019
+RBDB_data$DATE[which(RBDB_data$DATE=="2109-06-02")] <- "2019-06-02"   #Correct this cell
+RBDB_data$DATE <- as.factor(RBDB_data$DATE)
 
 RBDB_data <- RBDB_data %>% 
   mutate(year_month=DATE %>% 
@@ -119,10 +94,54 @@ RBDB_data <- RBDB_data %>%
            as.factor())
 
 RBDB_monthly_incidents <- RBDB_data %>% 
-  distinct(keep_all=TRUE) %>% #Remove duplicate incidents
+  distinct(.keep_all=TRUE) %>% #Remove duplicate incidents
   group_by(year_month) %>%    #Not working for some reason
   summarise(RBDB_incidents=n())  #report number of incidents per month
 
-colnames(RBDB_data)
+#check output
+table(RBDB_monthly_incidents$year_month)
 
-summary(RBDB_data)
+#merge to monthly incidents
+
+monthly_incidents <- monthly_incidents %>% 
+  merge(RBDB_monthly_incidents,by.x = "Month",by.y = "year_month",all=TRUE) %>% 
+  mutate(total_incidents=number_incidents+RBDB_incidents)
+
+#Pull out year
+monthly_incidents$year <- monthly_incidents$Month %>% 
+  as.character() %>% #set factor to character
+  paste0("-01") %>%  #append a day so you can have it in Date format
+  as.Date(format="%Y-%m-%d") %>% #Switch it to a date
+  format("%Y") %>% #Pull out the year
+  as.integer()   #Make it a factor for ease of merging and group by functionality
+
+
+# Check output
+str(monthly_incidents)
+summary(monthly_incidents)
+table(monthly_incidents$Month)
+
+#This is a very cool initial plot because you can see the huge spike of incidents in 2010 that Katie was talking about. Do we cut this data or look further back? If we're including problem bears as an analysis we can look further back.
+
+
+#merge acorn data
+acorn_data <- acorn_data[-1,] %>% 
+  rename(year=YOSEMITE.VALLEY..ln.transformed.mean.data.,chrysolepis=X,kelloggii=X.1)
+
+acorn_data$year <- as.integer(acorn_data$year)
+
+monthly_incidents <- monthly_incidents %>% 
+  merge(acorn_data, by="year", all.x = TRUE)
+
+# Merge monthly climate data to monthly incident data
+# Ensure 'MonthYear' in 'climate' data is also character type for merging
+
+str(reshaped_climate_data)
+incident_climate_data <- merge(monthly_incidents, reshaped_climate_data, by.x = "Month", by.y = "DATE", all.x = TRUE)
+
+# Check output
+str(incident_climate_data)
+summary(incident_climate_data)
+
+#Time to merge in snowpack data and visitation data
+
