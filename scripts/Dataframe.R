@@ -145,3 +145,20 @@ summary(incident_climate_data)
 
 #Time to merge in snowpack data and visitation data
 
+#For now, we'll do tioga, tenaya, and peregoy meadows, to get a good elevational gradient
+
+tioga_snow <- read.csv("./data_raw/snowpack_data/Tioga Pass (TGP) .csv")
+
+tenaya_snow <- read.csv("./data_raw/snowpack_data/TENAYA LAKE (TNY) .csv")
+
+peregoy_snow <- read.csv("./data_raw/snowpack_data/PEREGOY MEADOWS (PGM) .csv")
+
+str(tioga_snow)
+
+tioga_snow$Measured.Date <- tioga_snow$Measured.Date %>% 
+  dmy() %>% 
+  format("%Y-%m") %>% 
+  as.factor()    #This isn't working for some reason. Leads to 33 failing to parse.
+
+tioga_snow$Measured.Date[which(is.na(tioga_snow$Measured.Date))]
+
