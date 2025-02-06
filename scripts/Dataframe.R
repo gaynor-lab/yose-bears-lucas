@@ -4,6 +4,7 @@
 # First read in data frames I'll need. Climate, incident, bear ID, bears red bear dead bear, snowpack, visitation, acorn
 
 library(tidyverse)
+library(zoo)
 
 getwd()
 
@@ -155,10 +156,80 @@ peregoy_snow <- read.csv("./data_raw/snowpack_data/PEREGOY MEADOWS (PGM) .csv")
 
 str(tioga_snow)
 
-tioga_snow$Measured.Date <- tioga_snow$Measured.Date %>% 
-  dmy() %>% 
-  format("%Y-%m") %>% 
-  as.factor()    #This isn't working for some reason. Leads to 33 failing to parse.
+tioga_snow$Date <- tioga_snow$Date %>% 
+  paste0("/01") %>%  #append a day so you can have it in Date format
+  as.Date(format="%m/%Y/%d") %>% #Switch it to a date
+  format("%Y-%m") %>% #Pull out the year
+  as.factor()   #Make it a factor for ease of merging and group by functionality
 
-tioga_snow$Measured.Date[which(is.na(tioga_snow$Measured.Date))]
+tenaya_snow$Date <- tenaya_snow$Date %>% 
+  paste0("/01") %>%  #append a day so you can have it in Date format
+  as.Date(format="%m/%Y/%d") %>% #Switch it to a date
+  format("%Y-%m") %>% #Pull out the year
+  as.factor()   #Make it a factor for ease of merging and group by functionality
 
+peregoy_snow$Date <- peregoy_snow$Date %>% 
+  paste0("/01") %>%  #append a day so you can have it in Date format
+  as.Date(format="%m/%Y/%d") %>% #Switch it to a date
+  format("%Y-%m") %>% #Pull out the year
+  as.factor()   #Make it a factor for ease of merging and group by functionality
+
+tioga_snow <- tioga_snow[,c(-2,-4,-6)] %>% 
+  rename(tioga_depth=Depth,tioga_wc=W.C.,tioga_density=Density)
+
+tenaya_snow <- tenaya_snow[,c(-2,-4,-6)] %>% 
+  rename(tenaya_depth=Depth,tenaya_wc=W.C.,tenaya_density=Density)
+
+peregoy_snow <- peregoy_snow[,c(-2,-4,-6)] %>% 
+  rename(peregoy_depth=Depth,peregoy_wc=W.C.,peregoy_density=Density)
+
+#check output
+str(tioga_snow)
+
+
+incident_climate_data <- incident_climate_data %>% 
+  merge(tioga_snow,by.x="Month",by.y="Date",all.x = TRUE) %>% 
+  merge(tenaya_snow,by.x="Month",by.y="Date",all.x = TRUE) %>%
+  merge(peregoy_snow,by.x="Month",by.y="Date",all.x = TRUE)
+
+#check output
+variable.names(incident_climate_data)
+
+#Now for visitation
+
+visitation <- read.csv("./data_raw/Visitation by Month.csv",stringsAsFactors = TRUE)
+
+str(visitation)
+
+visitation_long <- visitation %>% 
+  pivot_longer(JAN:DEC, names_to = "month", values_to = "visitors") %>% 
+  mutate(
+    day = "01", 
+    date_yr_m = as.yearmon(paste(Year, month), "%Y %b"),  # Properly formatted
+    date_yr_m = format(date_yr_m, "%Y-%m")  # Convert to "YYYY-MM" format
+  ) %>% 
+  select(-day)  # Remove unnecessary column
+
+print(visitation_long)
+
+
+visitation_long$visitors <- as.numeric(gsub(",", "", as.character(visitation_long$visitors)))
+
+str(visitation_long)
+
+#merge to incident climate data (main dataframe)
+incident_climate_data <- incident_climate_data %>% 
+  merge(visitation_long,by.x = "Month",by.y = "date_yr_m",all.x = TRUE)
+
+
+#check output
+
+str(incident_climate_data)
+
+summary(incident_climate_data)
+
+#==Write into CSV
+
+write_csv(incident_climate_data,"./data_cleaned/incident_climate_data.csv")
+
+?write_csv
