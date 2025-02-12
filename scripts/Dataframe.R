@@ -25,12 +25,24 @@ str(ID_incident_data)
 
 # Pivot data wider by station, including attributes
 reshaped_climate_data <- climate_data %>%
+  select(
+    -(CDSD:HTDD_ATTRIBUTES),
+    -c(
+      PRCP_ATTRIBUTES,
+      SNOW_ATTRIBUTES,
+      TAVG_ATTRIBUTES,
+      TMIN_ATTRIBUTES,
+      TMAX_ATTRIBUTES
+    )
+  ) %>%
   pivot_wider(
-    names_from = STATION, # Use the station identifier for new column names
-    values_from = -DATE,  # Include all columns except DATE
+    names_from = STATION,
+    # Use the station identifier for new column names
+    values_from = -DATE,
+    # Include all columns except DATE
     names_sep = "_"       # Add a separator for clarity (e.g., TMAX_STATION1, TMAX_STATION2)
-  )
-
+  ) %>% 
+  select(-(STATION_USC00049855:ELEVATION_USW00053150))
 
 #Replace property type IDs with their corresponding strings
 
@@ -105,8 +117,13 @@ table(RBDB_monthly_incidents$year_month)
 #merge to monthly incidents
 
 monthly_incidents <- monthly_incidents %>% 
-  merge(RBDB_monthly_incidents,by.x = "Month",by.y = "year_month",all=TRUE) %>% 
-  mutate(total_incidents=number_incidents+RBDB_incidents)
+  merge(RBDB_monthly_incidents,by.x = "Month",by.y = "year_month",all.x=TRUE)
+
+#Get rid of NAs because if there's an NA it means no bears were hit by vehicle
+monthly_incidents[is.na(monthly_incidents)] <- 0  #Creates an NA value for year for some reason. Fix this.
+
+monthly_incidents <- mutate(monthly_incidents,total_incidents=number_incidents+RBDB_incidents)
+
 
 #Pull out year
 monthly_incidents$year <- monthly_incidents$Month %>% 
@@ -129,16 +146,18 @@ table(monthly_incidents$Month)
 acorn_data <- acorn_data[-1,] %>% 
   rename(year=YOSEMITE.VALLEY..ln.transformed.mean.data.,chrysolepis=X,kelloggii=X.1)
 
-acorn_data$year <- as.integer(acorn_data$year)
+str(acorn_data)
 
-monthly_incidents <- monthly_incidents %>% 
-  merge(acorn_data, by="year", all.x = TRUE)
+acorn_monthly_incidents <- monthly_incidents %>% 
+  merge(acorn_data, by="year", all.x = FALSE) #Don't include incidents for when there is no acorn data. Can do separate analysis with this dataframe later
 
 # Merge monthly climate data to monthly incident data
 # Ensure 'MonthYear' in 'climate' data is also character type for merging
 
 str(reshaped_climate_data)
-incident_climate_data <- merge(monthly_incidents, reshaped_climate_data, by.x = "Month", by.y = "DATE", all.x = TRUE)
+incident_climate_data <- merge(monthly_incidents, reshaped_climate_data, by.x = "Month", by.y = "DATE", all.x = TRUE)  
+#Need to deal with these NAs somehow
+
 
 # Check output
 str(incident_climate_data)
@@ -227,6 +246,10 @@ incident_climate_data <- incident_climate_data %>%
 str(incident_climate_data)
 
 summary(incident_climate_data)
+
+#Before writing into csv, make sure to order month numerically other than in it's current factorized form.
+
+#Will need to change month to a date time variable using lubridate.
 
 #==Write into CSV
 
