@@ -12,7 +12,7 @@ incidentData <- read.csv("./data_cleaned/cleaned_incidents_for_Lucas.csv",string
 bear_data <- read.csv("./data_raw/bearID_incidents.csv",stringsAsFactors = TRUE)
 climate_data <- read.csv("./data_raw/3825445.csv" , stringsAsFactors = TRUE)
 RBDB_data <- read.csv("./data_raw/RBDB Data 1995-2023.csv", stringsAsFactors = TRUE)
-acorn_data <- read.csv("./data_raw/Yosemite_acorn_data.csv", stringsAsFactors = TRUE)
+acorn_data <- read.csv("./data_raw//acorn_data/yosemitevalley.csv", stringsAsFactors = TRUE)
 
 
 # Merge the data frames on the common variable 'IncidentID'
@@ -44,6 +44,16 @@ reshaped_climate_data <- climate_data %>%
   ) %>% 
   select(-(STATION_USC00049855:ELEVATION_USW00053150))
 
+# Check to see which station has the least NAs
+
+sum(is.na(reshaped_climate_data$PRCP_USC00049855))  #42 NAs
+sum(is.na(reshaped_climate_data$PRCP_USC00048380))  #29 NAs
+sum(is.na(reshaped_climate_data$PRCP_USW00053150))  #7 NAs, so use this station (Yosemite Village). Does not have snowfall data but we already have snowpack data so not important
+
+reshaped_climate_data <- reshaped_climate_data %>% 
+  select(c(DATE,PRCP_USW00053150,TMAX_USW00053150,TMIN_USW00053150,TAVG_USW00053150))
+
+
 #Replace property type IDs with their corresponding strings
 
 ID_incident_data <- ID_incident_data %>%
@@ -61,9 +71,6 @@ ID_incident_data <- ID_incident_data %>%
     PropertyTypeID == 21 ~ "Portable Food Storage Containers",
     TRUE ~ NA_character_  # To handle any other cases
   ))
-
-
-#Pull month out of merged_data, reduce duplicate incident IDs, count all incidents in a month.
 
 
 
@@ -120,7 +127,9 @@ monthly_incidents <- monthly_incidents %>%
   merge(RBDB_monthly_incidents,by.x = "Month",by.y = "year_month",all.x=TRUE)
 
 #Get rid of NAs because if there's an NA it means no bears were hit by vehicle
-monthly_incidents[is.na(monthly_incidents)] <- 0  #Creates an NA value for year for some reason. Fix this.
+monthly_incidents[is.na(monthly_incidents)] <- 0
+
+
 
 monthly_incidents <- mutate(monthly_incidents,total_incidents=number_incidents+RBDB_incidents)
 
@@ -133,31 +142,39 @@ monthly_incidents$year <- monthly_incidents$Month %>%
   format("%Y") %>% #Pull out the year
   as.integer()   #Make it a factor for ease of merging and group by functionality
 
-
 # Check output
 str(monthly_incidents)
 summary(monthly_incidents)
 table(monthly_incidents$Month)
 
-#This is a very cool initial plot because you can see the huge spike of incidents in 2010 that Katie was talking about. Do we cut this data or look further back? If we're including problem bears as an analysis we can look further back.
 
+#Acorn data
 
-#merge acorn data
-acorn_data <- acorn_data[-1,] %>% 
-  rename(year=YOSEMITE.VALLEY..ln.transformed.mean.data.,chrysolepis=X,kelloggii=X.1)
+acorn_data_wide <- acorn_data %>%
+  pivot_wider(
+    names_from = SPECIES,
+    values_from = -c(YEAR, LOC, SPECIES),
+    names_sep = "_"
+  ) %>%
+  select(-LOC)
 
 str(acorn_data)
 
-acorn_monthly_incidents <- monthly_incidents %>% 
-  merge(acorn_data, by="year", all.x = FALSE) #Don't include incidents for when there is no acorn data. Can do separate analysis with this dataframe later
+monthly_incidents <- monthly_incidents %>% 
+  merge(acorn_data_wide, by.x ="year", by.y = "YEAR", all.x = FALSE) #Don't include incidents for when there is no acorn data. Can do separate analysis with this dataframe later
 
 # Merge monthly climate data to monthly incident data
 # Ensure 'MonthYear' in 'climate' data is also character type for merging
 
 str(reshaped_climate_data)
-incident_climate_data <- merge(monthly_incidents, reshaped_climate_data, by.x = "Month", by.y = "DATE", all.x = TRUE)  
-#Need to deal with these NAs somehow
+incident_climate_data <- monthly_incidents %>% 
+  merge(reshaped_climate_data, by.x = "Month", by.y = "DATE", all = FALSE)
 
+
+
+#Need to deal with these NAs somehow. Can set all=FALSE for now
+
+incident_climate_data <- drop_na(incident_climate_data)
 
 # Check output
 str(incident_climate_data)
@@ -165,17 +182,16 @@ summary(incident_climate_data)
 
 #Time to merge in snowpack data and visitation data
 
-#For now, we'll do tioga, tenaya, and peregoy meadows, to get a good elevational gradient
+#For now, we'll do dana, tenaya, and peregoy meadows, to get a good elevational gradient
 
-tioga_snow <- read.csv("./data_raw/snowpack_data/Tioga Pass (TGP) .csv")
+dana_snow <- read.csv("./data_raw/snowpack_data/DANA MEADOWS (DAN) .csv")
 
 tenaya_snow <- read.csv("./data_raw/snowpack_data/TENAYA LAKE (TNY) .csv")
 
 peregoy_snow <- read.csv("./data_raw/snowpack_data/PEREGOY MEADOWS (PGM) .csv")
 
-str(tioga_snow)
 
-tioga_snow$Date <- tioga_snow$Date %>% 
+dana_snow$Date <- dana_snow$Date %>% 
   paste0("/01") %>%  #append a day so you can have it in Date format
   as.Date(format="%m/%Y/%d") %>% #Switch it to a date
   format("%Y-%m") %>% #Pull out the year
@@ -193,8 +209,8 @@ peregoy_snow$Date <- peregoy_snow$Date %>%
   format("%Y-%m") %>% #Pull out the year
   as.factor()   #Make it a factor for ease of merging and group by functionality
 
-tioga_snow <- tioga_snow[,c(-2,-4,-6)] %>% 
-  rename(tioga_depth=Depth,tioga_wc=W.C.,tioga_density=Density)
+dana_snow <- dana_snow[,c(-2,-4,-6)] %>% 
+  rename(dana_depth=Depth,dana_wc=W.C.,dana_density=Density)
 
 tenaya_snow <- tenaya_snow[,c(-2,-4,-6)] %>% 
   rename(tenaya_depth=Depth,tenaya_wc=W.C.,tenaya_density=Density)
@@ -203,16 +219,54 @@ peregoy_snow <- peregoy_snow[,c(-2,-4,-6)] %>%
   rename(peregoy_depth=Depth,peregoy_wc=W.C.,peregoy_density=Density)
 
 #check output
-str(tioga_snow)
+str(dana_snow)
+
+#Remove percentage signs from Density
+
+dana_snow$dana_density <- gsub("%","",dana_snow$dana_density)
+tenaya_snow$tenaya_density <- gsub("%","",tenaya_snow$tenaya_density)
+peregoy_snow$peregoy_density <- gsub("%","",peregoy_snow$peregoy_density)
+
+dana_snow$dana_density <- as.numeric(dana_snow$dana_density)
+tenaya_snow$tenaya_density <- as.numeric(tenaya_snow$tenaya_density)
+peregoy_snow$peregoy_density <- as.numeric(peregoy_snow$peregoy_density)
 
 
 incident_climate_data <- incident_climate_data %>% 
-  merge(tioga_snow,by.x="Month",by.y="Date",all.x = TRUE) %>% 
+  merge(dana_snow,by.x="Month",by.y="Date",all.x = TRUE) %>% 
   merge(tenaya_snow,by.x="Month",by.y="Date",all.x = TRUE) %>%
   merge(peregoy_snow,by.x="Month",by.y="Date",all.x = TRUE)
 
+
+#Count up na's and select the snow pack data with the least NAs. NAs represent months where they aren't recording, which suggests to me that there is no snow (i.e. in the summer months). Therefore, We should set NAs to zero (even though there already are zeros in the dataset). Peregoy and Tenaya both have more observations, so maybe we'll use Dana meadows which also has that amount of observations
+
+sum(is.na(incident_climate_data$dana_density))
+sum(is.na(incident_climate_data$dana_depth))
+sum(is.na(incident_climate_data$dana_wc))
+
+sum(is.na(incident_climate_data$tenaya_density))
+sum(is.na(incident_climate_data$tenaya_depth))
+sum(is.na(incident_climate_data$tenaya_wc))
+
+sum(is.na(incident_climate_data$peregoy_density))
+sum(is.na(incident_climate_data$peregoy_depth))
+sum(is.na(incident_climate_data$peregoy_wc))
+
+#Get rid of NAs because if there's an NA it means no bears were hit by vehicle
+incident_climate_data$dana_depth[is.na(incident_climate_data$dana_depth)] <- 0
+incident_climate_data$dana_density[is.na(incident_climate_data$dana_density)] <- 0
+incident_climate_data$dana_wc[is.na(incident_climate_data$dana_wc)] <- 0
+
+incident_climate_data$tenaya_depth[is.na(incident_climate_data$tenaya_depth)] <- 0
+incident_climate_data$tenaya_wc[is.na(incident_climate_data$tenaya_wc)] <- 0
+incident_climate_data$tenaya_density[is.na(incident_climate_data$tenaya_density)] <- 0
+
+incident_climate_data$peregoy_depth[is.na(incident_climate_data$peregoy_depth)] <- 0
+incident_climate_data$peregoy_wc[is.na(incident_climate_data$peregoy_wc)] <- 0
+incident_climate_data$peregoy_density[is.na(incident_climate_data$peregoy_density)] <- 0
 #check output
 variable.names(incident_climate_data)
+summary(incident_climate_data)
 
 #Now for visitation
 
@@ -220,15 +274,17 @@ visitation <- read.csv("./data_raw/Visitation by Month.csv",stringsAsFactors = T
 
 str(visitation)
 
-visitation_long <- visitation %>% 
-  pivot_longer(JAN:DEC, names_to = "month", values_to = "visitors") %>% 
+visitation_long <- visitation %>%
+  pivot_longer(JAN:DEC, names_to = "month", values_to = "visitors") %>%
   mutate(
-    day = "01", 
-    date_yr_m = as.yearmon(paste(Year, month), "%Y %b"),  # Properly formatted
-    date_yr_m = format(date_yr_m, "%Y-%m")  # Convert to "YYYY-MM" format
-  ) %>% 
-  select(-day)  # Remove unnecessary column
+    day = "01",
+    date_yr_m = as.yearmon(paste(Year, month), "%Y %b"),
+    # Properly formatted
+    date_yr_m = format(date_yr_m, "%Y-%m")
+  ) %>%
+  select(-c(day, month, AnnualTotal, Textbox4))
 
+#Check output
 print(visitation_long)
 
 
@@ -255,4 +311,3 @@ summary(incident_climate_data)
 
 write_csv(incident_climate_data,"./data_cleaned/incident_climate_data.csv")
 
-?write_csv
