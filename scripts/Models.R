@@ -223,3 +223,45 @@ best_RBDB_global_model <- stepAIC(RBDB_global_model)
 summary(best_RBDB_global_model)   #AIC 350.26
 anova(best_RBDB_global_model)
 
+# ===Non RBDB incidents
+
+food_m1 <- glm(number_incidents ~ LN30_KELLOGGII + LN30_CHRYSOLEPIS + TAVG_USW00053150 + T_RANGE_USW00053150 + PRCP_USW00053150 + dana_depth + dana_wc + tenaya_depth + tenaya_wc + peregoy_depth + peregoy_wc + Precip_4mo + Precip_5mo + Precip_6mo + Precip_7mo + Precip_8mo + Precip_9mo + Precip_10mo + Precip_11mo + Precip_12mo, family = poisson, data = lagged_m1_data)
+
+summary(food_m1)   #AIC 846.69
+anova(food_m1)
+
+best_food_m1 <- stepAIC(food_m1)
+
+summary(best_food_m1)   #AIC 838.63
+anova(best_food_m1)
+
+food_m2 <- glm(number_incidents ~ visitors, family=poisson, data = m2_data)
+
+summary(food_m2)   #AIC 2011.9
+anova(food_m2)
+
+ggplot(m2_data, aes(x=visitors, y=number_incidents)) + 
+  geom_point(size = 2, col = "firebrick") + 
+  geom_smooth(method = "loess") +
+  theme_classic()
+
+food_m3 <- glm(number_incidents ~ active_bears, family=poisson, data = m3_data)
+
+summary(food_m3)   #AIC 1667.6
+anova(food_m3)
+
+ggplot(m3_data, aes(x=active_bears, y=number_incidents)) + 
+  geom_point(size = 2, col = "firebrick") + 
+  geom_smooth(method = "loess") +
+  theme_classic()
+
+food_global_model <- glm(number_incidents ~ LN30_KELLOGGII + LN30_CHRYSOLEPIS + TAVG_USW00053150 + T_RANGE_USW00053150 + PRCP_USW00053150 + dana_depth + dana_wc + tenaya_depth + tenaya_wc + peregoy_depth + peregoy_wc + Precip_4mo + Precip_5mo + Precip_6mo + Precip_7mo + Precip_8mo + Precip_9mo + Precip_10mo + Precip_11mo + Precip_12mo + visitors + active_bears, family = poisson, data = lagged_global_data)
+
+summary(food_global_model)  #AIC 774.54
+anova(food_global_model)
+
+best_food_global_model <- stepAIC(food_global_model)
+
+summary(best_food_global_model)   #AIC 766.67
+anova(best_food_global_model)
+
