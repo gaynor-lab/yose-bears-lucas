@@ -20,11 +20,14 @@ library(MuMIn)    # model selection
 library(leaps)    # model selection
 library(mgcv)     # cubic spline
 
-dataframe <- read.csv("./data_cleaned/incident_climate_data.csv",stringsAsFactors = TRUE)
+global_data <- read.csv("./data_cleaned/global_data.csv",stringsAsFactors = TRUE)
+m1_data <- read.csv("./data_cleaned/m1_data.csv",stringsAsFactors = TRUE)
+m2_data <- read.csv("./data_cleaned/m2_data.csv", stringsAsFactors = TRUE)
+m3_data <- read.csv("./data_cleaned/m3_data.csv",stringsAsFactors = TRUE)
 
 #Convert month to date format so it's ordered.
 
-str(dataframe)
+str(m1_data)
 
 
 
@@ -32,7 +35,7 @@ str(dataframe)
 
 
 # Create lagged precipitation variables for 4 to 12 months prior
-lagged_dataframe <- dataframe %>%
+lagged_m1_data <- m1_data %>%
   mutate(Month = ym(as.character(Month))) %>% 
   arrange(Month) %>%  # Ensure the data is ordered correctly
   mutate(
@@ -51,7 +54,7 @@ lagged_dataframe <- dataframe %>%
 
 #==First scale numeric variables
 
-scaled_dataframe <- lagged_dataframe %>% 
+scaled_m1_data <- lagged_m1_data %>% 
   dplyr::select(-c(NTREES_CHRYSOLEPIS,NTREES_KELLOGGII)) %>% #Get rid of nTREEs cause they don't vary
   mutate(N30_CHRYSOLEPIS_scaled=scale(N30_CHRYSOLEPIS),
          N30_KELLOGGII_scaled=scale(N30_KELLOGGII),
@@ -70,7 +73,6 @@ scaled_dataframe <- lagged_dataframe %>%
          peregoy_depth_scaled=scale(peregoy_depth),
          peregoy_wc_scaled=scale(peregoy_wc),
          peregoy_density_scaled=scale(peregoy_density),
-         visitors_scaled=scale(visitors),
          Precip_4mo_scaled=scale(Precip_4mo),
          Precip_5mo_scaled=scale(Precip_5mo),
          Precip_6mo_scaled=scale(Precip_6mo),
@@ -83,7 +85,7 @@ scaled_dataframe <- lagged_dataframe %>%
 
 # ===Test for correlations between predictor variables
 
-corr_matrix <- cor(scaled_dataframe[, c("N30_CHRYSOLEPIS_scaled","N30_KELLOGGII_scaled","LN30_CHRYSOLEPIS_scaled","LN30_KELLOGGII_scaled","PRCP_USW00053150_scaled","TMAX_USW00053150_scaled","TMIN_USW00053150_scaled","TAVG_USW00053150_scaled","dana_depth_scaled","dana_wc_scaled","dana_density_scaled","tenaya_depth_scaled","tenaya_wc_scaled","tenaya_density_scaled","peregoy_depth_scaled","peregoy_wc_scaled","peregoy_density_scaled","visitors_scaled","Precip_4mo_scaled","Precip_5mo_scaled","Precip_6mo_scaled","Precip_7mo_scaled","Precip_8mo_scaled","Precip_9mo_scaled","Precip_10mo_scaled","Precip_11mo_scaled","Precip_12mo_scaled")])
+corr_matrix <- cor(scaled_m1_data[, c("N30_CHRYSOLEPIS_scaled","N30_KELLOGGII_scaled","LN30_CHRYSOLEPIS_scaled","LN30_KELLOGGII_scaled","PRCP_USW00053150_scaled","TMAX_USW00053150_scaled","TMIN_USW00053150_scaled","TAVG_USW00053150_scaled","dana_depth_scaled","dana_wc_scaled","dana_density_scaled","tenaya_depth_scaled","tenaya_wc_scaled","tenaya_density_scaled","peregoy_depth_scaled","peregoy_wc_scaled","peregoy_density_scaled","Precip_4mo_scaled","Precip_5mo_scaled","Precip_6mo_scaled","Precip_7mo_scaled","Precip_8mo_scaled","Precip_9mo_scaled","Precip_10mo_scaled","Precip_11mo_scaled","Precip_12mo_scaled")])
 
 
 
@@ -98,14 +100,31 @@ corr_matrix <- cor(scaled_dataframe[, c("N30_CHRYSOLEPIS_scaled","N30_KELLOGGII_
 #Never scale response variable, only scale the dependent variables
 #Always scale numeric variables. Rare exceptions. Never the response.
 
-hist(dataframe$total_incidents)  #Shows a poisson distribution
+hist(m1_data$total_incidents)  #Shows a poisson distribution
 
 #==Model for total incidents. Cut out LN30 because it is a function of N30 on both species. Cut out T_Max and T_min because T avg is a function of both of them. Include depth and wc for all snow stations, but cut out density because it is a function of both of those measures. While I expect an interaction between temperature and precipitation, the step AIC function does not require me to include an interaction term.
 
-m1 <- glm(total_incidents ~ N30_KELLOGGII + N30_CHRYSOLEPIS + TAVG_USW00053150 + PRCP_USW00053150 + dana_depth + dana_wc + tenaya_depth + tenaya_wc + peregoy_depth + peregoy_wc + Precip_4mo + Precip_5mo + Precip_6mo + Precip_7mo + Precip_8mo + Precip_9mo + Precip_10mo + Precip_11mo + Precip_12mo, family = poisson, data = lagged_dataframe)
+m1 <- glm(total_incidents ~ N30_KELLOGGII + N30_CHRYSOLEPIS + TAVG_USW00053150 + PRCP_USW00053150 + dana_depth + dana_wc + tenaya_depth + tenaya_wc + peregoy_depth + peregoy_wc + Precip_4mo + Precip_5mo + Precip_6mo + Precip_7mo + Precip_8mo + Precip_9mo + Precip_10mo + Precip_11mo + Precip_12mo, family = poisson, data = lagged_m1_data)
 
+m2 <- glm(total_incidents ~ visitors, family=poisson, data = m2_data)
 
-summary(m1)
+summary(m2)
+anova(m2)
+
+ggplot(m2_data, aes(x=visitors, y=total_incidents)) + 
+  geom_point(size = 2, col = "firebrick") + 
+  geom_smooth(method = "loess") +
+  theme_classic()
+
+m3 <- glm(total_incidents ~ active_bears, family=poisson, data = m3_data)
+
+summary(m3)
+anova(m3)
+
+ggplot(m3_data, aes(x=active_bears, y=total_incidents)) + 
+  geom_point(size = 2, col = "firebrick") + 
+  geom_smooth(method = "loess") +
+  theme_classic()
 
 #==Perform stepwise regression on models
 

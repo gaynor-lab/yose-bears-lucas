@@ -127,9 +127,9 @@ monthly_incidents <- monthly_incidents %>%
   merge(RBDB_monthly_incidents,by.x = "Month",by.y = "year_month",all.x=TRUE)
 
 #Get rid of NAs because if there's an NA it means no bears were hit by vehicle
-monthly_incidents[is.na(monthly_incidents)] <- 0
+monthly_incidents$RBDB_incidents[is.na(monthly_incidents$RBDB_incidents)] <- 0
 
-
+monthly_incidents <- drop_na(monthly_incidents)
 
 monthly_incidents <- mutate(monthly_incidents,total_incidents=number_incidents+RBDB_incidents)
 
@@ -160,25 +160,25 @@ acorn_data_wide <- acorn_data %>%
 
 str(acorn_data)
 
-monthly_incidents <- monthly_incidents %>% 
+m1_data <- monthly_incidents %>% 
   merge(acorn_data_wide, by.x ="year", by.y = "YEAR", all.x = FALSE) #Don't include incidents for when there is no acorn data. Can do separate analysis with this dataframe later
 
 # Merge monthly climate data to monthly incident data
 # Ensure 'MonthYear' in 'climate' data is also character type for merging
 
 str(reshaped_climate_data)
-incident_climate_data <- monthly_incidents %>% 
-  merge(reshaped_climate_data, by.x = "Month", by.y = "DATE", all = FALSE)
 
+m1_data <- m1_data %>% 
+  merge(reshaped_climate_data, by.x = "Month", by.y = "DATE", all = FALSE)
 
 
 #Need to deal with these NAs somehow. Can set all=FALSE for now
 
-incident_climate_data <- drop_na(incident_climate_data)
+m1_data <- drop_na(m1_data)
 
 # Check output
-str(incident_climate_data)
-summary(incident_climate_data)
+str(m1_data)
+summary(m1_data)
 
 #Time to merge in snowpack data and visitation data
 
@@ -232,7 +232,7 @@ tenaya_snow$tenaya_density <- as.numeric(tenaya_snow$tenaya_density)
 peregoy_snow$peregoy_density <- as.numeric(peregoy_snow$peregoy_density)
 
 
-incident_climate_data <- incident_climate_data %>% 
+m1_data <- m1_data %>% 
   merge(dana_snow,by.x="Month",by.y="Date",all.x = TRUE) %>% 
   merge(tenaya_snow,by.x="Month",by.y="Date",all.x = TRUE) %>%
   merge(peregoy_snow,by.x="Month",by.y="Date",all.x = TRUE)
@@ -240,33 +240,34 @@ incident_climate_data <- incident_climate_data %>%
 
 #Count up na's and select the snow pack data with the least NAs. NAs represent months where they aren't recording, which suggests to me that there is no snow (i.e. in the summer months). Therefore, We should set NAs to zero (even though there already are zeros in the dataset). Peregoy and Tenaya both have more observations, so maybe we'll use Dana meadows which also has that amount of observations
 
-sum(is.na(incident_climate_data$dana_density))
-sum(is.na(incident_climate_data$dana_depth))
-sum(is.na(incident_climate_data$dana_wc))
+sum(is.na(m1_data$dana_density))
+sum(is.na(m1_data$dana_depth))
+sum(is.na(m1_data$dana_wc))
 
-sum(is.na(incident_climate_data$tenaya_density))
-sum(is.na(incident_climate_data$tenaya_depth))
-sum(is.na(incident_climate_data$tenaya_wc))
+sum(is.na(m1_data$tenaya_density))
+sum(is.na(m1_data$tenaya_depth))
+sum(is.na(m1_data$tenaya_wc))
 
-sum(is.na(incident_climate_data$peregoy_density))
-sum(is.na(incident_climate_data$peregoy_depth))
-sum(is.na(incident_climate_data$peregoy_wc))
+sum(is.na(m1_data$peregoy_density))
+sum(is.na(m1_data$peregoy_depth))
+sum(is.na(m1_data$peregoy_wc))
 
-#Get rid of NAs because if there's an NA it means no bears were hit by vehicle
-incident_climate_data$dana_depth[is.na(incident_climate_data$dana_depth)] <- 0
-incident_climate_data$dana_density[is.na(incident_climate_data$dana_density)] <- 0
-incident_climate_data$dana_wc[is.na(incident_climate_data$dana_wc)] <- 0
+#Get rid of NAs because if there's an NA it means stations weren't recording
+m1_data$dana_depth[is.na(m1_data$dana_depth)] <- 0
+m1_data$dana_density[is.na(m1_data$dana_density)] <- 0
+m1_data$dana_wc[is.na(m1_data$dana_wc)] <- 0
 
-incident_climate_data$tenaya_depth[is.na(incident_climate_data$tenaya_depth)] <- 0
-incident_climate_data$tenaya_wc[is.na(incident_climate_data$tenaya_wc)] <- 0
-incident_climate_data$tenaya_density[is.na(incident_climate_data$tenaya_density)] <- 0
+m1_data$tenaya_depth[is.na(m1_data$tenaya_depth)] <- 0
+m1_data$tenaya_wc[is.na(m1_data$tenaya_wc)] <- 0
+m1_data$tenaya_density[is.na(m1_data$tenaya_density)] <- 0
 
-incident_climate_data$peregoy_depth[is.na(incident_climate_data$peregoy_depth)] <- 0
-incident_climate_data$peregoy_wc[is.na(incident_climate_data$peregoy_wc)] <- 0
-incident_climate_data$peregoy_density[is.na(incident_climate_data$peregoy_density)] <- 0
+m1_data$peregoy_depth[is.na(m1_data$peregoy_depth)] <- 0
+m1_data$peregoy_wc[is.na(m1_data$peregoy_wc)] <- 0
+m1_data$peregoy_density[is.na(m1_data$peregoy_density)] <- 0
+
 #check output
-variable.names(incident_climate_data)
-summary(incident_climate_data)
+variable.names(m1_data)
+summary(m1_data)
 
 #Now for visitation
 
@@ -293,21 +294,66 @@ visitation_long$visitors <- as.numeric(gsub(",", "", as.character(visitation_lon
 str(visitation_long)
 
 #merge to incident climate data (main dataframe)
-incident_climate_data <- incident_climate_data %>% 
-  merge(visitation_long,by.x = "Month",by.y = "date_yr_m",all.x = TRUE)
-
+m2_data <- monthly_incidents %>% 
+  merge(visitation_long,by.x = "Month",by.y = "date_yr_m",all.x = TRUE) %>% 
+  drop_na()
 
 #check output
 
-str(incident_climate_data)
+str(m2_data)
 
-summary(incident_climate_data)
+summary(m2_data)
 
-#Before writing into csv, make sure to order month numerically other than in it's current factorized form.
+#Incorporate Problem bears. The following data is imported from the Bear euthanasias document. Months active is calculated as time of capture or first incident to time of euthanasia, as bears exhibit conflict behaviour prior to euthanasia. This seems more rigorous than an arbitrarily determined Three months prior metric.
 
-#Will need to change month to a date time variable using lubridate.
+euthanized_bear_ID <- c("3606", "3566", "3524","3001","3098","2394","3899","3591","3565","3037","3131","2255","3132","3520","2311","3223","3797","3636","3068","3077a","3077b","3077c","3666","2037")
+
+euthanasia_date <- c("04-14-2010","08-18-2010","10-01-2010","05-27-2011","07-08-2011","08-23-2012","08-25-2012","09-13-2012","12-15-2012","07-16-2013","06-26-2014","08-01-2014","05-27-2015","07-16-2015","08-02-2016","07-12-2018","07-11-2021","07-15-2021","08-06-2022","08-16-2022","08-16-2022","08-16-2022","09-14-2021","10-10-2022")
+
+capture_date <- c("06-10-2008","08-28-2006","06-29-2010","06-11-2008","08-19-2008","10-21-1995","07-26-2001","08-14-2011","11-23-2008","09-27-1999","10-09-2012","07-05-1993","11-4-2012","5-5-2010","7-11-2014","06-16-2017","05-22-2018","08-04-2017","08-02-2021","08-01-2015","06-01-2021","06-01-2021", "11-06-2019","05-19-2021")
+
+problem_bears <- data.frame(euthanized_bear_ID,euthanasia_date,capture_date)
+
+# Convert capture and euthanasia dates to Date format
+problem_bears <- problem_bears %>%
+  mutate(
+    capture_date = mdy(capture_date),
+    euthanasia_date = mdy(euthanasia_date)
+  )
+
+# Create a sequence of months each bear was active
+bear_months <- problem_bears %>%
+  rowwise() %>%
+  mutate(active_months = list(seq(floor_date(capture_date, "month"), 
+                                  floor_date(euthanasia_date, "month"), 
+                                  by = "month"))) %>%
+  unnest(active_months) %>%
+  mutate(active_months = format(active_months, "%Y-%m"))  # Convert to yyyy-mm format
+
+# Count active bears per month
+active_bears_per_month <- bear_months %>%
+  count(active_months, name = "active_bears") %>%
+  arrange(active_months)
+
+# Print result
+print(active_bears_per_month)
+
+#merge with dataset
+
+m3_data <- monthly_incidents %>% 
+  merge(active_bears_per_month,by.x="Month",by.y = "active_months", all.x = TRUE)
+
+#Get rid of NAs because if there's an NA it means no bears are active
+m3_data$active_bears[is.na(m3_data$active_bears)] <- 0
+
+global_data <- m1_data %>% 
+  merge(m2_data,by=c("Month","number_incidents","RBDB_incidents","total_incidents","year"),all.x=TRUE) %>% 
+  merge(m3_data,by=c("Month","number_incidents","RBDB_incidents","total_incidents","year"),all.x=TRUE)
 
 #==Write into CSV
 
-write_csv(incident_climate_data,"./data_cleaned/incident_climate_data.csv")
+write_csv(global_data,"./data_cleaned/global_data.csv")
+write_csv(m1_data,"./data_cleaned/m1_data.csv")
+write_csv(m2_data,"./data_cleaned/m2_data.csv")
+write_csv(m3_data,"./data_cleaned/m3_data.csv")
 
