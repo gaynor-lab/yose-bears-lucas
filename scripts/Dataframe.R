@@ -35,6 +35,7 @@ reshaped_climate_data <- climate_data %>%
       TMAX_ATTRIBUTES
     )
   ) %>%
+  mutate(T_RANGE=TMAX-TMIN) %>% 
   pivot_wider(
     names_from = STATION,
     # Use the station identifier for new column names
@@ -51,7 +52,7 @@ sum(is.na(reshaped_climate_data$PRCP_USC00048380))  #29 NAs
 sum(is.na(reshaped_climate_data$PRCP_USW00053150))  #7 NAs, so use this station (Yosemite Village). Does not have snowfall data but we already have snowpack data so not important
 
 reshaped_climate_data <- reshaped_climate_data %>% 
-  select(c(DATE,PRCP_USW00053150,TMAX_USW00053150,TMIN_USW00053150,TAVG_USW00053150))
+  select(c(DATE,PRCP_USW00053150,T_RANGE_USW00053150,TAVG_USW00053150))
 
 
 #Replace property type IDs with their corresponding strings
@@ -156,9 +157,9 @@ acorn_data_wide <- acorn_data %>%
     values_from = -c(YEAR, LOC, SPECIES),
     names_sep = "_"
   ) %>%
-  select(-LOC)
+  select(-c(LOC,N30_CHRYSOLEPIS,N30_KELLOGGII,NTREES_CHRYSOLEPIS,NTREES_KELLOGGII))
 
-str(acorn_data)
+str(acorn_data_wide)
 
 m1_data <- monthly_incidents %>% 
   merge(acorn_data_wide, by.x ="year", by.y = "YEAR", all.x = FALSE) #Don't include incidents for when there is no acorn data. Can do separate analysis with this dataframe later
