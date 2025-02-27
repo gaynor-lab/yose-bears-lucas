@@ -17,6 +17,8 @@ library(smatr)    # correct for body size
 library(MuMIn)    # model selection
 library(leaps)    # model selection
 library(mgcv)     # cubic spline
+install.packages("tscount")
+library(tscount)
 
 global_data <- read.csv("./data_cleaned/global_data.csv",stringsAsFactors = TRUE)
 m1_data <- read.csv("./data_cleaned/m1_data.csv",stringsAsFactors = TRUE)
@@ -172,6 +174,31 @@ ggplot(m3_data, aes(x=active_bears, y=total_incidents)) +
   theme_classic()
 
 total_global_model <- glm(total_incidents ~ LN30_KELLOGGII + LN30_CHRYSOLEPIS + TAVG_USW00053150 + T_RANGE_USW00053150 + PRCP_USW00053150 + dana_depth + dana_wc + tenaya_depth + tenaya_wc + peregoy_depth + peregoy_wc + Precip_4mo + Precip_5mo + Precip_6mo + Precip_7mo + Precip_8mo + Precip_9mo + Precip_10mo + Precip_11mo + Precip_12mo + visitors + active_bears, family = poisson, data = lagged_global_data)
+
+# My attempt at a time series glm model. Didn't work.
+
+library(tscount)
+
+xreg_matrix <- as.matrix(lagged_global_data[, c("LN30_KELLOGGII", "LN30_CHRYSOLEPIS", 
+                                                "TAVG_USW00053150", "T_RANGE_USW00053150", 
+                                                "PRCP_USW00053150", "dana_depth", "dana_wc", 
+                                                "tenaya_depth", "tenaya_wc", "peregoy_depth", 
+                                                "peregoy_wc", "Precip_4mo", "Precip_5mo", 
+                                                "Precip_6mo", "Precip_7mo", "Precip_8mo", 
+                                                "Precip_9mo", "Precip_10mo", "Precip_11mo", 
+                                                "Precip_12mo", "visitors", "active_bears")])
+
+total_incidents_vector <- as.numeric(lagged_global_data$total_incidents)
+
+
+#Try with tsglm model
+total_tsglm_model <- tsglm(
+  y = lagged_global_data$total_incidents,  # Response variable (time series)
+  xreg = xreg_matrix, 
+  model = list(p=1, q=0),  # AR(1) model (adjust as needed)
+  distr = "poisson"
+)
+
 
 summary(total_global_model)  #AIC 745.93
 anova(total_global_model)
