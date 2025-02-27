@@ -120,12 +120,12 @@ scaled_global_data <- lagged_global_data %>%
 
 # ===Test for correlations between predictor variables
 
-corr_matrix <- cor(scaled_m1_data[, c("LN30_CHRYSOLEPIS_scaled","LN30_KELLOGGII_scaled","PRCP_USW00053150_scaled","T_RANGE_USW00053150_scaled","TAVG_USW00053150_scaled","dana_depth_scaled","dana_wc_scaled","dana_density_scaled","tenaya_depth_scaled","tenaya_wc_scaled","tenaya_density_scaled","peregoy_depth_scaled","peregoy_wc_scaled","peregoy_density_scaled","Precip_4mo_scaled","Precip_5mo_scaled","Precip_6mo_scaled","Precip_7mo_scaled","Precip_8mo_scaled","Precip_9mo_scaled","Precip_10mo_scaled","Precip_11mo_scaled","Precip_12mo_scaled")])
+m1_corr_matrix <- cor(scaled_m1_data[, c("LN30_CHRYSOLEPIS_scaled","LN30_KELLOGGII_scaled","PRCP_USW00053150_scaled","T_RANGE_USW00053150_scaled","TAVG_USW00053150_scaled","dana_depth_scaled","dana_wc_scaled","dana_density_scaled","tenaya_depth_scaled","tenaya_wc_scaled","tenaya_density_scaled","peregoy_depth_scaled","peregoy_wc_scaled","peregoy_density_scaled","Precip_4mo_scaled","Precip_5mo_scaled","Precip_6mo_scaled","Precip_7mo_scaled","Precip_8mo_scaled","Precip_9mo_scaled","Precip_10mo_scaled","Precip_11mo_scaled","Precip_12mo_scaled")])
 
-corr_matrix <- cor(scaled_global_data[, c("LN30_CHRYSOLEPIS_scaled","LN30_KELLOGGII_scaled","PRCP_USW00053150_scaled","T_RANGE_USW00053150_scaled","TAVG_USW00053150_scaled","dana_depth_scaled","dana_wc_scaled","dana_density_scaled","tenaya_depth_scaled","tenaya_wc_scaled","tenaya_density_scaled","peregoy_depth_scaled","peregoy_wc_scaled","peregoy_density_scaled","Precip_4mo_scaled","Precip_5mo_scaled","Precip_6mo_scaled","Precip_7mo_scaled","Precip_8mo_scaled","Precip_9mo_scaled","Precip_10mo_scaled","Precip_11mo_scaled","Precip_12mo_scaled","visitors","active_bears")])
+global_corr_matrix <- cor(scaled_global_data[, c("LN30_CHRYSOLEPIS_scaled","LN30_KELLOGGII_scaled","PRCP_USW00053150_scaled","T_RANGE_USW00053150_scaled","TAVG_USW00053150_scaled","dana_depth_scaled","dana_wc_scaled","dana_density_scaled","tenaya_depth_scaled","tenaya_wc_scaled","tenaya_density_scaled","peregoy_depth_scaled","peregoy_wc_scaled","peregoy_density_scaled","Precip_4mo_scaled","Precip_5mo_scaled","Precip_6mo_scaled","Precip_7mo_scaled","Precip_8mo_scaled","Precip_9mo_scaled","Precip_10mo_scaled","Precip_11mo_scaled","Precip_12mo_scaled","visitors","active_bears")])
 
 
-# Unsurprisingly temperature is super correlated, so we can probably get away with just using one value (TAVG). Snowpack is also pretty correlated between sites. Acorn data is really correlated within species but slightly different between species.
+# Unsurprisingly temperature range is super correlated with average temperature, so we can probably get away with just using one value (TAVG). Snowpack is also pretty correlated between sites.
 
 
 #Make sure to scale them so each variable moves from 0-100 to see
@@ -137,7 +137,7 @@ corr_matrix <- cor(scaled_global_data[, c("LN30_CHRYSOLEPIS_scaled","LN30_KELLOG
 
 hist(m1_data$total_incidents)  #Shows a poisson distribution
 
-#==Model for total incidents. Cut out LN30 because it is a function of N30 on both species. Cut out T_Max and T_min because T avg is a function of both of them. Include depth and wc for all snow stations, but cut out density because it is a function of both of those measures. While I expect an interaction between temperature and precipitation, the step AIC function does not require me to include an interaction term.
+#==Model for total incidents. Cut out LN30 because it is a function of N30 on both species. Cut out T_Max and T_min because T avg is a function of both of them. Can use T_Range instead. Include depth and wc for all snow stations, but cut out density because it is a function of both of those measures. While I expect an interaction between temperature and precipitation, the step AIC function does not require me to include an interaction term.
 
 # ===Total Incidents
 
