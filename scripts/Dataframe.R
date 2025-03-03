@@ -157,12 +157,25 @@ acorn_data_wide <- acorn_data %>%
     values_from = -c(YEAR, LOC, SPECIES),
     names_sep = "_"
   ) %>%
-  select(-c(LOC,N30_CHRYSOLEPIS,N30_KELLOGGII,NTREES_CHRYSOLEPIS,NTREES_KELLOGGII))
+  select(-c(
+    LOC,
+    LN30_CHRYSOLEPIS,
+    LN30_KELLOGGII,
+    NTREES_CHRYSOLEPIS,
+    NTREES_KELLOGGII
+  ))
 
 str(acorn_data_wide)
 
 m1_data <- monthly_incidents %>% 
-  merge(acorn_data_wide, by.x ="year", by.y = "YEAR", all.x = FALSE) #Don't include incidents for when there is no acorn data. Can do separate analysis with this dataframe later
+  merge(acorn_data_wide, by.x ="year", by.y = "YEAR", all.x = FALSE) %>%
+  mutate(
+    Month_Num = as.numeric(str_sub(as.character(Month), 6, 7)),  # Extract month number
+    N30_CHRYSOLEPIS = ifelse(Month_Num %in% c(9, 10, 11, 12), N30_CHRYSOLEPIS, 0),
+    N30_KELLOGGII = ifelse(Month_Num %in% c(9,10,11,12), N30_KELLOGGII, 0)
+  ) %>%
+  select(-Month_Num)  # Remove the temporary column
+
 
 # Merge monthly climate data to monthly incident data
 # Ensure 'MonthYear' in 'climate' data is also character type for merging
