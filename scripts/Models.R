@@ -19,8 +19,9 @@ library(leaps)    # model selection
 library(mgcv)     # cubic spline
 #install.packages("tscount")
 library(tscount)
-install.packages("forecast")
+#install.packages("forecast")
 library(forecast)
+library(boot)   #K-Fold Cross Validation
 
 global_data <- read.csv("./data_cleaned/global_data.csv",stringsAsFactors = TRUE)
 
@@ -93,12 +94,23 @@ scaled_global_data <- lagged_global_data %>%
          mean_snow_depth_scaled=scale(mean_snow_depth),
          active_bears_scaled=scale(active_bears),
          visitors_scaled=scale(visitors),
+         prior_total_incidents_scaled=scale(prior_total_incidents),
+         prior_RBDB_incidents_scaled=scale(prior_RBDB_incidents),
+         prior_number_incidents_scaled=scale(prior_number_incidents)
          )
 
 # ===Test for correlations between predictor variables
 
 global_corr_matrix <- cor(scaled_global_data[, c("PRCP_USW00053150_scaled","T_RANGE_USW00053150_scaled","TAVG_USW00053150_scaled","precip_prior_scaled","mean_snow_depth_scaled","active_bears_scaled","visitors_scaled","acorn_total_scaled")])
 
+t1 <-  glm(total_incidents ~ TAVG_USW00053150,  family = poisson, data = scaled_global_data) 
+
+t2 <-  glm(total_incidents ~ T_RANGE_USW00053150,  family = poisson, data = scaled_global_data) 
+
+AIC(t1) #934.1009
+AIC(t2)  #1217.4
+
+# Use average
 
 # Average temperature and precip have correlation, Average temperature and temperature range have correlation, average temperature and visitation have correlation,
 
@@ -117,40 +129,40 @@ hist(global_data$total_incidents)  #Shows a poisson distribution
 # ===Total Incidents
 
 total_global_model <- glm(
-  total_incidents ~ TAVG_USW00053150_scaled + T_RANGE_USW00053150_scaled + PRCP_USW00053150_scaled +
+  total_incidents ~ TAVG_USW00053150_scaled + PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
-    acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_total_incidents,
+    acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_total_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-summary(total_global_model)  #AIC 797.55
+summary(total_global_model)  #AIC 796.96
 
 anova(total_global_model)
 
 stepwise_global <- stepAIC(total_global_model)
 
-summary(stepwise_global)   #AIC 796
+summary(stepwise_global)   #AIC 796.18
 
 m1_total <- glm(
-  total_incidents ~ TAVG_USW00053150_scaled + T_RANGE_USW00053150_scaled + PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_total_incidents,
+  total_incidents ~ TAVG_USW00053150_scaled + PRCP_USW00053150_scaled +
+    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_total_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-summary(m1_total)  #AIC 862.07
+summary(m1_total)  #AIC 861.8
 anova(m1_total)
 
 stepwise_m1 <- stepAIC(m1_total)
 
 summary(stepwise_m1)  #AIC 861.8
 
-m2_total <- glm(total_incidents ~ visitors_scaled + prior_total_incidents, family = poisson, data = scaled_global_data)
+m2_total <- glm(total_incidents ~ visitors_scaled + prior_total_incidents_scaled, family = poisson, data = scaled_global_data)
 
 summary(m2_total)  # AIC 921.51
 
-m3_total <- glm(total_incidents ~ active_bears_scaled + prior_total_incidents, family = poisson, data = scaled_global_data)
+m3_total <- glm(total_incidents ~ active_bears_scaled + prior_total_incidents_scaled, family = poisson, data = scaled_global_data)
 
 summary(m3_total)   #1102.1
 
@@ -162,51 +174,51 @@ summary(m3_total)   #1102.1
 # ===RBDB Incidents
 
 RBDB_global_model <- glm(
-  RBDB_incidents ~ TAVG_USW00053150_scaled + T_RANGE_USW00053150_scaled + PRCP_USW00053150_scaled +
+  RBDB_incidents ~ TAVG_USW00053150_scaled + PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
-    acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_RBDB_incidents,
+    acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_RBDB_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-summary(RBDB_global_model)  #AIC 362.89
+summary(RBDB_global_model)  #AIC 363.66
 anova(RBDB_global_model)
 
 stepwise_global_RBDB <- stepAIC(RBDB_global_model)
-summary(stepwise_global_RBDB)   #AIC 357.72
+summary(stepwise_global_RBDB)   #AIC 358.76
 
 m1_RBDB <- glm(
-  RBDB_incidents ~ TAVG_USW00053150_scaled + T_RANGE_USW00053150_scaled + PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_RBDB_incidents,
+  RBDB_incidents ~ TAVG_USW00053150_scaled + PRCP_USW00053150_scaled +
+    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_RBDB_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-summary(m1_RBDB)  #AIC 369.12
+summary(m1_RBDB)  #AIC 370.63
 anova(m1_RBDB)
 
 stepwise_m1_RBDB <- stepAIC(m1_RBDB)
-summary(stepwise_m1_RBDB)  #AIC 367.23
+summary(stepwise_m1_RBDB)  #AIC 368.73
 
-m2_RBDB <- glm(RBDB_incidents ~ visitors_scaled + prior_RBDB_incidents, family = poisson, data = scaled_global_data)
+m2_RBDB <- glm(RBDB_incidents ~ visitors_scaled + prior_RBDB_incidents_scaled, family = poisson, data = scaled_global_data)
 
 summary(m2_RBDB)  # AIC 379.35
 
-m3_RBDB <- glm(RBDB_incidents ~ active_bears_scaled + prior_RBDB_incidents, family = poisson, data = scaled_global_data)
+m3_RBDB <- glm(RBDB_incidents ~ active_bears_scaled + prior_RBDB_incidents_scaled, family = poisson, data = scaled_global_data)
 
 summary(m3_RBDB)   #472.99
 
 # ===Non RBDB incidents
 
 food_global_model <- glm(
-  number_incidents ~ TAVG_USW00053150_scaled + T_RANGE_USW00053150_scaled + PRCP_USW00053150_scaled +
+  number_incidents ~ TAVG_USW00053150_scaled + PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
-    acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_number_incidents,
+    acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_number_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-summary(food_global_model)  #AIC 814.78
+summary(food_global_model)  #AIC 813.32
 
 anova(food_global_model)
 
@@ -215,23 +227,40 @@ stepwise_global_food <- stepAIC(food_global_model)
 summary(stepwise_global_food)   #AIC 812.15
 
 m1_food <- glm(
-  number_incidents ~ TAVG_USW00053150_scaled + T_RANGE_USW00053150_scaled + PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_number_incidents,
+  number_incidents ~ TAVG_USW00053150_scaled + PRCP_USW00053150_scaled +
+    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_number_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-summary(m1_food)  #AIC 883.63
+summary(m1_food)  #AIC 882.36
 anova(m1_food)
 
 stepwise_m1_food <- stepAIC(m1_food)
 
 summary(stepwise_m1_food)  #AIC 882.36
 
-m2_food <- glm(number_incidents ~ visitors_scaled + prior_number_incidents, family = poisson, data = scaled_global_data)
+m2_food <- glm(number_incidents ~ visitors_scaled + prior_number_incidents_scaled, family = poisson, data = scaled_global_data)
 
 summary(m2_food)  # AIC 945.61
 
-m3_food <- glm(number_incidents ~ active_bears_scaled + prior_number_incidents, family = poisson, data = scaled_global_data)
+m3_food <- glm(number_incidents ~  active_bears_scaled + prior_number_incidents_scaled, family = poisson, data = scaled_global_data)
 
 summary(m3_food)   #1033.3
+
+# ===Plot Incidents over time
+
+ggplot(data=scaled_global_data,aes(x=Month,y=total_incidents))+geom_point()+geom_path()
+
+ggplot(data=scaled_global_data,aes(x=Month,y=RBDB_incidents))+geom_point()+geom_path()
+
+ggplot(data=scaled_global_data,aes(x=Month,y=number_incidents))+geom_point()+geom_path()
+
+# ===K-Fold Cross Validation
+
+
+# leave-one-out and 10-fold cross-validation prediction error for 
+# the mammals data set.
+
+(cv.err <- cv.glm(scaled_global_data, stepwise_global)$delta)
+(cv.err.10 <- cv.glm(scaled_global_data, stepwise_global, K = 10)$delta) #(98.17553, 97.23873). Seems very high!
