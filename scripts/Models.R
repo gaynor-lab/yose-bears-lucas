@@ -8,20 +8,14 @@
 
 library(tidyverse)
 library(visreg)   # model fit visualizations
-library(emmeans)  # estimate effects
 library(car)      # linear model utilities
 library(lmerTest) # lmer() in lme4 package
 library(nlme)     # lme() in nlme package
 library(MASS)     # confidence intervals
-library(smatr)    # correct for body size
-library(MuMIn)    # model selection
-library(leaps)    # model selection
-library(mgcv)     # cubic spline
-#install.packages("tscount")
 library(tscount)
-#install.packages("forecast")
 library(forecast)
 library(boot)   #K-Fold Cross Validation
+library(MuMIn)  #Model Selection
 
 global_data <- read.csv("./data_cleaned/global_data.csv",stringsAsFactors = TRUE)
 
@@ -166,6 +160,14 @@ m3_total <- glm(total_incidents ~ active_bears_scaled + prior_total_incidents_sc
 
 summary(m3_total)   #1102.1
 
+aic_m1_total <- AIC(m1_total)
+aic_m2_total <- AIC(m2_total)
+aic_m3_total <- AIC(m3_total)
+aic_global_total <- AIC(total_global_model)
+step_aic_global_total <- AIC(stepwise_global)
+
+total_model_weights <- Weights(c(step_aic_global_total,aic_global_total,aic_m1_total,aic_m2_total,aic_m3_total))
+
 #USE SCALED VARIABLES IN MODEL, not just for testing for correlations.
 #Add together different oak species. Compare scaled ln and abundance acorn data and select one. Check histogram of scaled acorn and scaled log of acorns. Plot histogram of all raw variables. Don't include acorn abundance in winter. Peak of acorn season is mid September to October Spring and summer is main season (find when acorns are present in Walt's paper). Is autoregression as simple as including response(t-1) as a predictor? Yes. Can't compare models if there are different datasets. Everyone works on figures over pizza. Simple figure of male and female demographic. Use function predict to make predicted results. Sketch out figures I want to make and tables (crappy sketches). Make a column of change in AIC, which matters more than the AIC itself. I'll include temp:precip after I run it through the stepwise reaction. Need to test predictive power through cross validation process: (K-folds cross validation).
 
@@ -185,7 +187,7 @@ summary(RBDB_global_model)  #AIC 363.66
 anova(RBDB_global_model)
 
 stepwise_global_RBDB <- stepAIC(RBDB_global_model)
-summary(stepwise_global_RBDB)   #AIC 358.76
+summary(stepwise_global_RBDB)   #AIC 358.76. This removes the response at t-1 as a predictor. Is that bad?
 
 m1_RBDB <- glm(
   RBDB_incidents ~ TAVG_USW00053150_scaled + PRCP_USW00053150_scaled +
@@ -207,6 +209,15 @@ summary(m2_RBDB)  # AIC 379.35
 m3_RBDB <- glm(RBDB_incidents ~ active_bears_scaled + prior_RBDB_incidents_scaled, family = poisson, data = scaled_global_data)
 
 summary(m3_RBDB)   #472.99
+
+aic_m1_RBDB <- AIC(m1_RBDB)
+step_aic_m1_RBDB <- AIC(stepwise_m1_RBDB)
+aic_m2_RBDB <- AIC(m2_RBDB)
+aic_m3_RBDB <- AIC(m3_RBDB)
+aic_global_RBDB <- AIC(RBDB_global_model)
+step_aic_global_RBDB <- AIC(stepwise_global_RBDB)
+
+RBDB_model_weights <- Weights(c(step_aic_global_RBDB,aic_global_RBDB,step_aic_m1_RBDB,aic_m1_RBDB,aic_m2_RBDB,aic_m3_RBDB))
 
 # ===Non RBDB incidents
 
@@ -264,3 +275,13 @@ ggplot(data=scaled_global_data,aes(x=Month,y=number_incidents))+geom_point()+geo
 
 (cv.err <- cv.glm(scaled_global_data, stepwise_global)$delta)
 (cv.err.10 <- cv.glm(scaled_global_data, stepwise_global, K = 10)$delta) #(98.17553, 97.23873). Seems very high!
+
+(cv.err.10 <- cv.glm(scaled_global_data, stepwise_global)$delta)
+
+
+cv.glm(scaled_global_data,total_global_model, K=10)$delta
+# 98.18789 97.23311
+
+cv.glm(scaled_global_data,m1_total, K=10)$delta
+
+?cv.glm
