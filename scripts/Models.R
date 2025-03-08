@@ -16,7 +16,7 @@ library(tscount)
 library(forecast)
 library(boot)   #K-Fold Cross Validation
 library(MuMIn)  #Model Selection
-
+library(AICcmodavg)  #AIC table
 
 global_data <- read.csv("./data_cleaned/global_data.csv",stringsAsFactors = TRUE)
 
@@ -55,8 +55,9 @@ lagged_global_data <- global_data %>%
     acorn_total = rowMeans(cbind(N30_KELLOGGII, N30_CHRYSOLEPIS), na.rm = TRUE),
     mean_snow_depth = rowMeans(cbind(tenaya_depth, peregoy_depth, dana_depth), na.rm = TRUE),
     prior_total_incidents=lag(total_incidents, 1),
-    prior_number_incidents=lag(number_incidents,1),
-    prior_RBDB_incidents=lag(number_incidents,1)
+    prior_non_aggressive_incidents=lag(non_aggressive_incidents,1),
+    prior_aggressive_incidents=lag(aggressive_incidents,1),
+    prior_RBDB_incidents=lag(RBDB_incidents,1)
   ) %>% 
   drop_na()
 
@@ -65,7 +66,8 @@ lagged_global_data <- global_data %>%
 
 hist(lagged_global_data$total_incidents)
 hist(lagged_global_data$RBDB_incidents)
-hist(lagged_global_data$number_incidents)    #Poisson distributed
+hist(lagged_global_data$non_aggressive_incidents)    #Poisson distributed
+hist(lagged_global_data$aggressive_incidents)
 
 hist(lagged_global_data$TAVG_USW00053150)
 hist(lagged_global_data$T_RANGE_USW00053150)   #Potentially kind of left skewed
@@ -91,12 +93,13 @@ scaled_global_data <- lagged_global_data %>%
          visitors_scaled=scale(visitors),
          prior_total_incidents_scaled=scale(prior_total_incidents),
          prior_RBDB_incidents_scaled=scale(prior_RBDB_incidents),
-         prior_number_incidents_scaled=scale(prior_number_incidents)
+         prior_non_aggressive_incidents_scaled=scale(prior_non_aggressive_incidents),
+         prior_aggressive_incidents_scaled=scale(prior_aggressive_incidents)
          )
 
 # ===Test for correlations between predictor variables
 
-global_corr_matrix <- cor(scaled_global_data[, c("PRCP_USW00053150_scaled","T_RANGE_USW00053150_scaled","TAVG_USW00053150_scaled","precip_prior_scaled","mean_snow_depth_scaled","active_bears_scaled","visitors_scaled","acorn_total_scaled")])
+global_corr_matrix <- cor(scaled_global_data[, c("PRCP_USW00053150_scaled","T_RANGE_USW00053150_scaled","TAVG_USW00053150_scaled","precip_prior_scaled","mean_snow_depth_scaled","active_bears_scaled","visitors_scaled","acorn_total_scaled","prior_total_incidents_scaled","prior_RBDB_incidents_scaled","prior_non_aggressive_incidents_scaled","prior_aggressive_incidents_scaled")])
 
 t1 <-  glm(total_incidents ~ TAVG_USW00053150,  family = poisson, data = scaled_global_data) 
 
@@ -112,21 +115,14 @@ AIC(t3)
 
 # Average temperature and precip have correlation, Average temperature and temperature range have correlation, average temperature and visitation have correlation,
 
-
-#Make sure to scale them so each variable moves from 0-100 to see
-#Mutate(column_scaled=scale(column_name))
 #Check correlations between scaled variables
 #Run models and use AIC to figure out main models
 #Never scale response variable, only scale the dependent variables
 #Always scale numeric variables. Rare exceptions. Never the response.
 
-hist(global_data$total_incidents)  #Shows a poisson distribution
-
 #==Model for total incidents. Cut out LN30 because it is a function of N30 on both species. Cut out T_Max and T_min because T avg is a function of both of them. Can use T_Range instead. Include depth and wc for all snow stations, but cut out density because it is a function of both of those measures. While I expect an interaction between temperature and precipitation, the step AIC function does not require me to include an interaction term.
 
 # ===Total Incidents
-
-total_corr_matrix <- cor(scaled_global_data[,c("PRCP_USW00053150_scaled","precip_prior_scaled","mean_snow_depth_scaled","active_bears_scaled","visitors_scaled","acorn_total_scaled","prior_total_incidents_scaled")])
 
 total_global_model <- glm(
   total_incidents ~ PRCP_USW00053150_scaled +
@@ -138,40 +134,27 @@ total_global_model <- glm(
 
 #Temp correlates with a bunch of things. Get rid of it, maybe include interaction only.
 
-summary(total_global_model)  #AIC 801.64
+summary(total_global_model)  #AIC 807.6
 
 anova(total_global_model)
 
 stepwise_global_total <- stepAIC(total_global_model)
 
-summary(stepwise_global_total)   #AIC 801.64. No change.
+summary(stepwise_global_total)   #AIC 807.6. No change.
 
 m1_total <- glm(
   total_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_total_incidents_scaled,
+    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + prior_total_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-#install.packages("effects")
-library(effects)
-
-?effect   #Put in variable of interest and dataframe, plot output: Shows how error gets bigger with higher precipitation. Hmmmm... Might want to log it within the model?
-
-#Include point whisker plot for each variable and their effects.
-
-name <- effects::effect("PRCP_USW00053150_scaled",stepwise_global)
-
-
-
-plot(name)   #Error still gets bigger with precipitation when temperature is cut.
-
-summary(m1_total)  #AIC 896.02
+summary(m1_total)  #AIC 936.91
 anova(m1_total)
 
 stepwise_m1 <- stepAIC(m1_total)
 
-summary(stepwise_m1)  #AIC 896.02. No change.
+summary(stepwise_m1)  #AIC 936.91. No change.
 
 m2_total <- glm(total_incidents ~ visitors_scaled + prior_total_incidents_scaled, family = poisson, data = scaled_global_data)
 
@@ -181,15 +164,13 @@ m3_total <- glm(total_incidents ~ active_bears_scaled + prior_total_incidents_sc
 
 summary(m3_total)   #1102.1
 
-aic_m1_total <- AIC(m1_total)
-aic_m2_total <- AIC(m2_total)
-aic_m3_total <- AIC(m3_total)
-aic_global_total <- AIC(total_global_model)
-step_aic_global_total <- AIC(stepwise_global)
+# AIC Table. Package and directions from https://www.scribbr.com/statistics/akaike-information-criterion/#:~:text=To%20use%20aictab()%2C%20first%20load%20the%20library%20AICcmodavg.&text=Then%20put%20the%20models%20into,names').&text=Finally%2C%20run%20aictab()%20to%20do%20the%20comparison.
 
-total_model_weights <- Weights(c(step_aic_global_total,aic_global_total,aic_m1_total,aic_m2_total,aic_m3_total))
+total_models <- list(total_global_model, stepwise_global_total, m1_total, stepwise_m1, m2_total, m3_total)
 
+total_model.names <- c('Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
 
+aictab(cand.set = total_models, modnames = total_model.names)
 
 #USE SCALED VARIABLES IN MODEL, not just for testing for correlations.
 #Add together different oak species. Compare scaled ln and abundance acorn data and select one. Check histogram of scaled acorn and scaled log of acorns. Plot histogram of all raw variables. Don't include acorn abundance in winter. Peak of acorn season is mid September to October Spring and summer is main season (find when acorns are present in Walt's paper). Is autoregression as simple as including response(t-1) as a predictor? Yes. Can't compare models if there are different datasets. Everyone works on figures over pizza. Simple figure of male and female demographic. Use function predict to make predicted results. Sketch out figures I want to make and tables (crappy sketches). Make a column of change in AIC, which matters more than the AIC itself. I'll include temp:precip after I run it through the stepwise reaction. Need to test predictive power through cross validation process: (K-folds cross validation).
@@ -201,12 +182,12 @@ total_model_weights <- Weights(c(step_aic_global_total,aic_global_total,aic_m1_t
 RBDB_global_model <- glm(
   RBDB_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
-    acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_RBDB_incidents_scaled,
+    acorn_total_scaled + prior_RBDB_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-summary(RBDB_global_model)  #AIC 373.78
+summary(RBDB_global_model)  #AIC 373.15
 anova(RBDB_global_model)
 
 stepwise_global_RBDB <- stepAIC(RBDB_global_model)  #Gets rid of autoregressive term. Add it back.
@@ -215,73 +196,128 @@ summary(stepwise_global_RBDB)   #AIC 366.99
 
 m1_RBDB <- glm(
   RBDB_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_RBDB_incidents_scaled,
+    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled +  prior_RBDB_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-summary(m1_RBDB)  #AIC 402.45
+summary(m1_RBDB)  #AIC 398.28
 anova(m1_RBDB)
 
 stepwise_m1_RBDB <- stepAIC(m1_RBDB)
-summary(stepwise_m1_RBDB)  #AIC 397.68
+summary(stepwise_m1_RBDB)  #AIC 396.71
 
 m2_RBDB <- glm(RBDB_incidents ~ visitors_scaled + prior_RBDB_incidents_scaled, family = poisson, data = scaled_global_data)
 
-summary(m2_RBDB)  # AIC 379.35
+summary(m2_RBDB)  # AIC 378.74
 
 m3_RBDB <- glm(RBDB_incidents ~ active_bears_scaled + prior_RBDB_incidents_scaled, family = poisson, data = scaled_global_data)
 
-summary(m3_RBDB)   #472.99
+summary(m3_RBDB)   #463.36
 
-aic_m1_RBDB <- AIC(m1_RBDB)
-step_aic_m1_RBDB <- AIC(stepwise_m1_RBDB)
-aic_m2_RBDB <- AIC(m2_RBDB)
-aic_m3_RBDB <- AIC(m3_RBDB)
-aic_global_RBDB <- AIC(RBDB_global_model)
-step_aic_global_RBDB <- AIC(stepwise_global_RBDB)
+#AIC table
 
-RBDB_model_weights <- Weights(c(step_aic_global_RBDB,aic_global_RBDB,step_aic_m1_RBDB,aic_m1_RBDB,aic_m2_RBDB,aic_m3_RBDB))
+RBDB_models <- list(RBDB_global_model, stepwise_global_RBDB, m1_RBDB, stepwise_m1_RBDB, m2_RBDB, m3_RBDB)
 
-# ===Non RBDB incidents
+RBDB_model.names <- c('Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
+
+aictab(cand.set = RBDB_models, modnames = RBDB_model.names)
+
+# ===Non_aggressive food incidents
 
 food_global_model <- glm(
-  number_incidents ~ PRCP_USW00053150_scaled +
+  non_aggressive_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
-    acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_number_incidents_scaled,
+    acorn_total_scaled + prior_non_aggressive_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-summary(food_global_model)  #AIC 812.55
+summary(food_global_model)  #AIC 800.18
 
 anova(food_global_model)
 
 stepwise_global_food <- stepAIC(food_global_model)
 
-summary(stepwise_global_food)   #AIC 811.94
+summary(stepwise_global_food)   #AIC 798.62
 
 m1_food <- glm(
-  number_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + TAVG_USW00053150_scaled:PRCP_USW00053150_scaled + prior_number_incidents_scaled,
+  non_aggressive_incidents ~ PRCP_USW00053150_scaled +
+    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + prior_non_aggressive_incidents_scaled,
   family = poisson,
   data = scaled_global_data
 )
 
-summary(m1_food)  #AIC 895.61
+summary(m1_food)  # 917.79
 anova(m1_food)
 
 stepwise_m1_food <- stepAIC(m1_food)
 
-summary(stepwise_m1_food)  #AIC 895.61
+summary(stepwise_m1_food)  #AIC 917.79
 
-m2_food <- glm(number_incidents ~ visitors_scaled + prior_number_incidents_scaled, family = poisson, data = scaled_global_data)
+m2_food <- glm(non_aggressive_incidents ~ visitors_scaled + prior_non_aggressive_incidents_scaled, family = poisson, data = scaled_global_data)
 
-summary(m2_food)  # AIC 945.61
+summary(m2_food)  # AIC 913.89
 
-m3_food <- glm(number_incidents ~  active_bears_scaled + prior_number_incidents_scaled, family = poisson, data = scaled_global_data)
+m3_food <- glm(non_aggressive_incidents ~  active_bears_scaled + prior_non_aggressive_incidents_scaled, family = poisson, data = scaled_global_data)
 
-summary(m3_food)   #1033.3
+summary(m3_food)   #996.82
+
+#AIC Table
+
+food_models <- list(food_global_model, stepwise_global_food, m1_food, stepwise_m1_food, m2_food, m3_food)
+
+food_model.names <- c('Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
+
+aictab(cand.set = food_models, modnames = food_model.names)
+
+# ===Aggressive food incidents
+
+angry_global_model <- glm(
+  aggressive_incidents ~ PRCP_USW00053150_scaled +
+    precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
+    acorn_total_scaled + prior_aggressive_incidents_scaled,
+  family = poisson,
+  data = scaled_global_data
+)
+
+summary(angry_global_model)  #AIC 800.18
+
+anova(angry_global_model)
+
+stepwise_global_angry <- stepAIC(angry_global_model)
+
+summary(stepwise_global_angry)   #AIC 798.62
+
+m1_angry <- glm(
+  aggressive_incidents ~ PRCP_USW00053150_scaled +
+    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + prior_aggressive_incidents_scaled,
+  family = poisson,
+  data = scaled_global_data
+)
+
+summary(m1_angry)  # 917.79
+anova(m1_angry)
+
+stepwise_m1_angry <- stepAIC(m1_angry)
+
+summary(stepwise_m1_angry)  #AIC 917.79
+
+m2_angry <- glm(aggressive_incidents ~ visitors_scaled + prior_aggressive_incidents_scaled, family = poisson, data = scaled_global_data)
+
+summary(m2_food)  # AIC 913.89
+
+m3_angry <- glm(aggressive_incidents ~  active_bears_scaled + prior_aggressive_incidents_scaled, family = poisson, data = scaled_global_data)
+
+summary(m3_food)   #996.82
+
+#AIC Table
+
+angry_models <- list(angry_global_model, stepwise_global_angry, m1_angry, stepwise_m1_angry, m2_angry, m3_angry)
+
+angry_model.names <- c('Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
+
+aictab(cand.set = angry_models, modnames = angry_model.names)
 
 # ===Plot Incidents over time
 
@@ -289,7 +325,7 @@ ggplot(data=scaled_global_data,aes(x=Month,y=total_incidents))+geom_point()+geom
 
 ggplot(data=scaled_global_data,aes(x=Month,y=RBDB_incidents))+geom_point()+geom_path()
 
-ggplot(data=scaled_global_data,aes(x=Month,y=number_incidents))+geom_point()+geom_path()
+ggplot(data=scaled_global_data,aes(x=Month,y=non_aggressive_incidents))+geom_point()+geom_path()
 
 #install.packages("dotwhisker")
 library(dotwhisker) 
@@ -375,7 +411,7 @@ cv.err_intercept$delta
 cv.glm(scaled_global_data,total_global_model, K=10)$delta
 # 97.17167 96.31279
 
-cv.glm(scaled_global_data,total_global_model, K=5)$delta
+cv.glm(scaled_global_data,total_global_model, K=10)$delta
 # 96.97496, 95.21131
 
 cv.glm(scaled_global_data,m1_total, K=10)$delta

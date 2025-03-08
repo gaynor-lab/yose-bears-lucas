@@ -6,8 +6,6 @@
 library(tidyverse)
 library(zoo)
 
-getwd()
-
 incidentData <- read.csv("./data_cleaned/cleaned_incidents_for_Lucas.csv",stringsAsFactors = TRUE)
 bear_data <- read.csv("./data_raw/bearID_incidents.csv",stringsAsFactors = TRUE)
 climate_data <- read.csv("./data_raw/3825445.csv" , stringsAsFactors = TRUE)
@@ -75,13 +73,19 @@ ID_incident_data <- ID_incident_data %>%
 
 
 
-# Assuming your data frames are 'incidents' and 'climate'
+# Pull out month columns and specify if incidents are agressive or not.
 
-# Step 1: Extract month and year from the 'IncidentDate' column in 'incidents'
-ID_incident_data$Month <- ID_incident_data$IncidentDate %>% 
-  as.Date(format="%Y-%m-%d") %>% 
-  format("%Y-%m") %>% 
-  as.factor()
+ID_incident_data <- ID_incident_data %>%
+  mutate(Month = as.factor(format(ymd(IncidentDate), "%Y-%m")), Aggressive =
+           as.factor((
+             case_when(
+               BlameFactorDesc == "Bluff Charge - Conditioned Behavior" ~ "Yes",
+               BlameFactorDesc == "Bluff Charge - Defensive" ~ "Yes",
+               .default = "No"
+             )
+           )))
+
+  
 
 # Check output
 head(ID_incident_data)
@@ -91,8 +95,11 @@ str(ID_incident_data)
 # This stores the number of incidents per month in a new dataframe
 monthly_incidents <- ID_incident_data %>%
   distinct(IncidentID, .keep_all = TRUE) %>%    #Removes duplicate incident ID's so there's only one per each
-  group_by(Month) %>%         #Group incidents by month
-  summarise(number_incidents=n())      #Display number of observations with matching month in new column "number_incidents"
+  group_by(Month,Aggressive) %>%         #Group incidents by month and agression
+  summarise(number_incidents=n()) %>% 
+  pivot_wider(names_from = Aggressive,values_from = number_incidents,names_prefix = "Aggressive_") %>% 
+  replace_na(list(Aggressive_No=0,Aggressive_Yes=0)) %>% 
+  rename(non_aggressive_incidents=Aggressive_No,aggressive_incidents=Aggressive_Yes)
 
 table(monthly_incidents$Month)   #check for outliers. I don't see any.
 
@@ -132,7 +139,7 @@ monthly_incidents$RBDB_incidents[is.na(monthly_incidents$RBDB_incidents)] <- 0
 
 monthly_incidents <- drop_na(monthly_incidents)
 
-monthly_incidents <- mutate(monthly_incidents,total_incidents=number_incidents+RBDB_incidents)
+monthly_incidents <- mutate(monthly_incidents,total_incidents=non_aggressive_incidents+ aggressive_incidents+RBDB_incidents)
 
 
 #Pull out year
@@ -361,8 +368,8 @@ m3_data <- monthly_incidents %>%
 m3_data$active_bears[is.na(m3_data$active_bears)] <- 0
 
 global_data <- m1_data %>% 
-  merge(m2_data,by=c("Month","number_incidents","RBDB_incidents","total_incidents","year"),all.x=TRUE) %>% 
-  merge(m3_data,by=c("Month","number_incidents","RBDB_incidents","total_incidents","year"),all.x=TRUE)
+  merge(m2_data,by=c("Month","non_aggressive_incidents","aggressive_incidents","RBDB_incidents","total_incidents","year"),all.x=TRUE) %>% 
+  merge(m3_data,by=c("Month","non_aggressive_incidents","aggressive_incidents","RBDB_incidents","total_incidents","year"),all.x=TRUE)
 
 #==Write into CSV
 
