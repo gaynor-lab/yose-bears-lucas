@@ -17,6 +17,7 @@ library(forecast)
 library(boot)   #K-Fold Cross Validation
 library(MuMIn)  #Model Selection
 library(AICcmodavg)  #AIC table
+library(effects)
 
 global_data <- read.csv("./data_cleaned/global_data.csv",stringsAsFactors = TRUE)
 
@@ -132,6 +133,8 @@ total_global_model <- glm(
   data = scaled_global_data
 )
 
+#Gopal: If it's an autoregressive term, you have to specify it as such somehow.
+
 #Temp correlates with a bunch of things. Get rid of it, maybe include interaction only.
 
 summary(total_global_model)  #AIC 807.6
@@ -193,6 +196,9 @@ anova(RBDB_global_model)
 stepwise_global_RBDB <- stepAIC(RBDB_global_model)  #Gets rid of autoregressive term. Add it back.
 
 summary(stepwise_global_RBDB)   #AIC 366.99
+
+stepwise_global_RBDB <- glm(RBDB_incidents ~ PRCP_USW00053150_scaled + mean_snow_depth_scaled + 
+      visitors_scaled + prior_RBDB_incidents_scaled, family = poisson, data = scaled_global_data)
 
 m1_RBDB <- glm(
   RBDB_incidents ~ PRCP_USW00053150_scaled +
@@ -329,67 +335,100 @@ ggplot(data=scaled_global_data,aes(x=Month,y=non_aggressive_incidents))+geom_poi
 
 #install.packages("dotwhisker")
 library(dotwhisker) 
-
+library(NatParksPalettes)
 
 model_plot <- total_global_model %>% 
-  dwplot(show_intercept = TRUE) %>% 
+  dwplot(show_intercept = TRUE,) %>% 
   relabel_predictors("(Intercept)" = "Intercept",
-                   PRCP_USW00053150_scaled ="Monthly precipitation (mm)",
-                   precip_prior_scaled ="Accumulated precipitation (4-12 months in advance)",
-                   mean_snow_depth_scaled ="Mean snow depth (cm)",
-                   active_bears_scaled ="# of active problem bears",
-                   visitors_scaled ="# of visitors",
-                   acorn_total_scaled ="N30 Aaorn abundance",
-                   prior_total_incidents_scaled ="Autoregressive term",
-                   "PRCP_USW00053150_scaled:TAVG_USW00053150_scaled"="Precipitation (mm) X Temperature (ºC)"
-                   )
+                     PRCP_USW00053150_scaled ="Monthly precipitation (mm)",
+                     precip_prior_scaled ="Accumulated precipitation (4-12 months in advance)",
+                     mean_snow_depth_scaled ="Mean snow depth (cm)",
+                     active_bears_scaled ="# of active problem bears",
+                     visitors_scaled ="# of visitors",
+                     acorn_total_scaled ="N30 Acorn abundance",
+                     prior_total_incidents_scaled ="Autoregressive term"
+  )
 
-model_plot <- model_plot + theme_classic() + xlab("Coefficient") + ylab("Predictor") + geom_vline(xintercept = 0, linetype = "dotted")   # Dotted line at zero, different colours for negative and positive slopes.
+# Modify dataset to classify estimates as positive or negative
+model_plot$data <- model_plot$data %>%
+  mutate(color_group = ifelse(estimate < 0, "Negative", "Positive"))
+
+# Update plot with color mapping for both points and error bars
+model_plot <- ggplot(data = model_plot$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor")
+
+                                                                                                # Print updated plot
+print(model_plot)
+
+ggsave("./figures/total_model_figure.PNG",model_plot)
 
 summary(total_global_model)  #Verify. Try to make prettier if possible, but this looks good!.
 
 #==Predict figures effects. Errors increase with environmental variables and autoregressive term, so maybe log transform it. Make a Github issue and ask Kaitlyn.
 
 
+# Precip
 PRCP_effect <- effect("PRCP_USW00053150_scaled", total_global_model)
 plot(PRCP_effect)
 
+PRCP_USW00053150_scaling <- scale(scaled_global_data$PRCP_USW00053150)
+
+PRCP_plot <- as.data.frame(PRCP_effect) %>%
+  mutate(
+    PRCP_USW00053150 = PRCP_USW00053150_scaled * attr(PRCP_USW00053150_scaling, "scaled:scale") +
+      attr(PRCP_USW00053150_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = PRCP_USW00053150, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Monthly Precipitation (mm)",y="Total Incidents (t)")
+
+print(PRCP_plot)
+
+ggsave("./figures/PRCP_effect.PNG",PRCP_plot)
+
+#Prior Precip
 precip_prior_effect <- effect("precip_prior_scaled",total_global_model)
 plot(precip_prior_effect)
 
+#Snow depth
 mean_snow_effect <- effect("mean_snow_depth_scaled",total_global_model)
 plot(mean_snow_effect)
 
+#active bears
 active_bears_effect <- effect("active_bears_scaled",total_global_model)
 plot(active_bears_effect)
 
+#visitors
 visitors_effect <- effect("visitors_scaled", total_global_model)
 plot(visitors_effect)
 
+#acorns
 acorn_effect <- effect("acorn_total_scaled",total_global_model)
 plot(acorn_effect)
 
+#Prior incidents
 prior_incidents_effect <- effect("prior_total_incidents_scaled",total_global_model)
 plot(prior_incidents_effect)
 
-mean_footprint_scaling <- scale(dailyDbears$average_footprint.x)
-diurn_plot <- as.data.frame(diurnality_effect) %>%
-  mutate(average_footprint.x = average_footprint_scaled * attr(mean_footprint_scaling, “scaled:scale”) +
-           attr(mean_footprint_scaling, “scaled:center”)) %>%
-  ggplot(aes(x = average_footprint.x, y = fit)) +
-   geom_hline(yintercept = 0, linetype = “dotted”, color = “black”) +  # Add a dotted black line at y = 0
-  geom_line(aes(linetype = COVID_Status, color = COVID_Status), show.legend = FALSE, size = 1.1) + # Remove legend for lines
-  geom_ribbon(aes(ymin = lower, ymax = upper, fill = COVID_Status), alpha = 0.15) +
-  scale_linetype_manual(values = c(“solid”, “dashed”), guide = FALSE) + # Remove legend for linetype
-  scale_color_manual(values = c(“deepskyblue2", “orange”)) +
-  theme_minimal() +
-  xlab(“Mean human footprint (daily)“) +
-  ylab(“Diurnality (daily)“) +
-  scale_fill_discrete(name = “Visitation”, type = c(“deepskyblue2", “orange”), labels = c(“Normal visitation”, “COVID-19 closure”)) +
-  theme(text = element_text(size = 12),
-        axis.text = element_text(size = 12)) +
-  guides(color = guide_legend(title = “Visitation”), linetype = FALSE)
+mean_prior_incidents_scaling <- scale(scaled_global_data$prior_total_incidents)
 
+prior_incident_plot <- as.data.frame(prior_incidents_effect) %>%
+  mutate(
+    prior_total_incidents = prior_total_incidents_scaled * attr(mean_prior_incidents_scaling, "scaled:scale") +
+      attr(mean_prior_incidents_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = prior_total_incidents, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior Total Incidents (t-1)",y="Total Incidents (t)")
+
+print(prior_incident_plot)
+
+ggsave("./figures/prior_incidents_effect.PNG",prior_incident_plot)
 
 # ===K-Fold Cross Validation
 
