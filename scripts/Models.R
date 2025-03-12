@@ -18,6 +18,7 @@ library(boot)   #K-Fold Cross Validation
 library(MuMIn)  #Model Selection
 library(AICcmodavg)  #AIC table
 library(effects)
+library(cowplot)
 
 global_data <- read.csv("./data_cleaned/global_data.csv",stringsAsFactors = TRUE)
 
@@ -325,13 +326,9 @@ angry_model.names <- c('Global Model', 'Stepwise Global Model', 'Environmental',
 
 aictab(cand.set = angry_models, modnames = angry_model.names)
 
-# ===Plot Incidents over time
+# ===Plot Total Incidents over time
 
 ggplot(data=scaled_global_data,aes(x=Month,y=total_incidents))+geom_point()+geom_path()
-
-ggplot(data=scaled_global_data,aes(x=Month,y=RBDB_incidents))+geom_point()+geom_path()
-
-ggplot(data=scaled_global_data,aes(x=Month,y=non_aggressive_incidents))+geom_point()+geom_path()
 
 #install.packages("dotwhisker")
 library(dotwhisker) 
@@ -367,6 +364,7 @@ summary(total_global_model)  #Verify. Try to make prettier if possible, but this
 
 
 # Precip
+
 PRCP_effect <- effect("PRCP_USW00053150_scaled", total_global_model)
 plot(PRCP_effect)
 
@@ -382,31 +380,124 @@ PRCP_plot <- as.data.frame(PRCP_effect) %>%
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Monthly Precipitation (mm)",y="Total Incidents (t)")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Monthly Precipitation (mm)",y="Total Incidents [t]")
 
 print(PRCP_plot)
 
 ggsave("./figures/PRCP_effect.PNG",PRCP_plot)
 
 #Prior Precip
+
 precip_prior_effect <- effect("precip_prior_scaled",total_global_model)
 plot(precip_prior_effect)
 
+PRCP_prior_scaling <- scale(scaled_global_data$precip_prior)
+
+PRCP_prior_plot <- as.data.frame(precip_prior_effect) %>%
+  mutate(
+    PRCP_prior = precip_prior_scaled * attr(PRCP_prior_scaling, "scaled:scale") +
+      attr(PRCP_prior_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = PRCP_prior, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior accumulated precipitation (mm)",y="Total Incidents [t]")
+
+print(PRCP_prior_plot)
+
+ggsave("./figures/Prior_PRCP_effect.PNG",PRCP_prior_plot)
+
 #Snow depth
+
 mean_snow_effect <- effect("mean_snow_depth_scaled",total_global_model)
 plot(mean_snow_effect)
+
+mean_depth_scaling <- scale(scaled_global_data$mean_snow_depth)
+
+snow_plot <- as.data.frame(mean_snow_effect) %>%
+  mutate(
+    mean_depth = mean_snow_depth_scaled * attr(mean_depth_scaling, "scaled:scale") +
+      attr(mean_depth_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = mean_depth, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Mean snow septh (cm)",y="Total incidents [t]")
+
+print(snow_plot)
+
+ggsave("./figures/mean_snow_effect.PNG",snow_plot)
 
 #active bears
 active_bears_effect <- effect("active_bears_scaled",total_global_model)
 plot(active_bears_effect)
 
+active_bears_scaling <- scale(scaled_global_data$active_bears_scaled)
+
+bear_plot <- as.data.frame(active_bears_effect) %>%
+  mutate(
+    active_bears = active_bears_scaled * attr(active_bears_scaling, "scaled:scale") +
+      attr(active_bears_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = active_bears, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="# of active bears",y="Total Incidents [t]")
+
+print(bear_plot)
+
+ggsave("./figures/bear_effect.PNG",bear_plot)
+
 #visitors
 visitors_effect <- effect("visitors_scaled", total_global_model)
 plot(visitors_effect)
 
+visitors_scaling <- scale(scaled_global_data$visitors)
+
+visitors_plot <- as.data.frame(visitors_effect) %>%
+  mutate(
+    visitors = visitors_scaled * attr(visitors_scaling, "scaled:scale") +
+      attr(visitors_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = visitors, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="# of visitors",y="Total Incidents [t]")
+
+print(visitors_plot)
+
+ggsave("./figures/visitors_plot.PNG",visitors_plot)
+
 #acorns
+
 acorn_effect <- effect("acorn_total_scaled",total_global_model)
 plot(acorn_effect)
+
+acorn_scaling <- scale(scaled_global_data$acorn_total)
+
+acorn_plot <- as.data.frame(acorn_effect) %>%
+  mutate(
+    acorn = acorn_total_scaled * attr(acorn_scaling, "scaled:scale") +
+      attr(acorn_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = acorn, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="N30 acorn abundance",y="Total Incidents [t]")
+
+print(acorn_plot)
+
+ggsave("./figures/acorn_effect.PNG",acorn_plot)
 
 #Prior incidents
 prior_incidents_effect <- effect("prior_total_incidents_scaled",total_global_model)
@@ -424,11 +515,21 @@ prior_incident_plot <- as.data.frame(prior_incidents_effect) %>%
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior Total Incidents (t-1)",y="Total Incidents (t)")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior Total Incidents [t-1]",y="Total Incidents [t]")
 
 print(prior_incident_plot)
 
 ggsave("./figures/prior_incidents_effect.PNG",prior_incident_plot)
+
+figure2 <- plot_grid(PRCP_plot, PRCP_prior_plot, snow_plot, bear_plot, visitors_plot, acorn_plot, prior_incident_plot)
+
+ggsave("./figures/effects_figure.PNG",figure2)
+
+# plot_grid(plot1, plot2, labels = c('A', 'B')) # we can also add labels
+# 
+# # We can control for the number of rows and columns by using nrow = and ncol =, for example:
+# plot_grid(plot1, plot2, labels = c('A', 'B'), ncol = 1)
+
 
 # ===K-Fold Cross Validation
 
