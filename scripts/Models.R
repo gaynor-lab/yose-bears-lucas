@@ -328,7 +328,9 @@ aictab(cand.set = angry_models, modnames = angry_model.names)
 
 # ===Plot Total Incidents over time
 
-ggplot(data=scaled_global_data,aes(x=Month,y=total_incidents))+geom_point()+geom_path()
+time_series_total <- ggplot(data=scaled_global_data,aes(x=Month,y=total_incidents))+geom_point(color="darkolivegreen4")+geom_path(color="darkolivegreen") + theme_classic() + labs(x="Month",y="Total Incidents [t]")
+
+ggsave("./figures/time_series_total_plot.PNG",time_series_total)
 
 #install.packages("dotwhisker")
 library(dotwhisker) 
@@ -525,10 +527,129 @@ figure2 <- plot_grid(PRCP_plot, PRCP_prior_plot, snow_plot, bear_plot, visitors_
 
 ggsave("./figures/effects_figure.PNG",figure2)
 
-# plot_grid(plot1, plot2, labels = c('A', 'B')) # we can also add labels
-# 
-# # We can control for the number of rows and columns by using nrow = and ncol =, for example:
-# plot_grid(plot1, plot2, labels = c('A', 'B'), ncol = 1)
+# ===RBDB Plots
+
+time_series_RBDB <- ggplot(data=scaled_global_data,aes(x=Month,y=RBDB_incidents))+geom_point(color="darkolivegreen4")+geom_path(color="darkolivegreen") + theme_classic() + labs(x="Month",y="RBDB Incidents [t]")
+
+ggsave("./figures/time_series_RBDB_plot.PNG",time_series_RBDB)
+
+model_plot_RBDB <- stepwise_global_RBDB %>% 
+  dwplot(show_intercept = TRUE,) %>% 
+  relabel_predictors("(Intercept)" = "Intercept",
+                     PRCP_USW00053150_scaled ="Monthly precipitation (mm)",
+                     mean_snow_depth_scaled ="Mean snow depth (cm)",
+                     visitors_scaled ="# of visitors",
+                     prior_RBDB_incidents_scaled ="Autoregressive term"
+  )
+
+# Modify dataset to classify estimates as positive or negative
+model_plot_RBDB$data <- model_plot_RBDB$data %>%
+  mutate(color_group = ifelse(estimate < 0, "Negative", "Positive"))
+
+# Update plot with color mapping for both points and error bars
+model_plot_RBDB <- ggplot(data = model_plot_RBDB$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor")
+
+# Print updated plot
+print(model_plot_RBDB)
+
+ggsave("./figures/RBDB_model_figure.PNG",model_plot_RBDB)
+
+#==Predict figures effects. Errors increase with environmental variables and autoregressive term, so maybe log transform it. Make a Github issue and ask Kaitlyn.
+
+
+# Precip
+
+PRCP_effect_RBDB <- effect("PRCP_USW00053150_scaled", stepwise_global_RBDB)
+plot(PRCP_effect_RBDB)
+
+PRCP_USW00053150_scaling <- scale(scaled_global_data$PRCP_USW00053150)
+
+PRCP_plot_RBDB <- as.data.frame(PRCP_effect_RBDB) %>%
+  mutate(
+    PRCP_USW00053150 = PRCP_USW00053150_scaled * attr(PRCP_USW00053150_scaling, "scaled:scale") +
+      attr(PRCP_USW00053150_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = PRCP_USW00053150, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Monthly Precipitation (mm)",y="Vehicular Incidents [t]")
+
+print(PRCP_plot_RBDB)
+
+ggsave("./figures/PRCP_effect_RBDB.PNG",PRCP_plot_RBDB)
+
+#Snow depth
+
+mean_snow_effect_RBDB <- effect("mean_snow_depth_scaled",stepwise_global_RBDB)
+plot(mean_snow_effect_RBDB)
+
+mean_depth_scaling <- scale(scaled_global_data$mean_snow_depth)
+
+snow_plot_RBDB <- as.data.frame(mean_snow_effect_RBDB) %>%
+  mutate(
+    mean_depth = mean_snow_depth_scaled * attr(mean_depth_scaling, "scaled:scale") +
+      attr(mean_depth_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = mean_depth, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Mean snow septh (cm)",y="Vehicular incidents [t]")
+
+print(snow_plot_RBDB)
+
+ggsave("./figures/mean_snow_effect_RBDB.PNG",snow_plot_RBDB)
+
+#visitors
+visitors_effect_RBDB <- effect("visitors_scaled", stepwise_global_RBDB)
+plot(visitors_effect_RBDB)
+
+visitors_scaling <- scale(scaled_global_data$visitors)
+
+visitors_plot_RBDB <- as.data.frame(visitors_effect_RBDB) %>%
+  mutate(
+    visitors = visitors_scaled * attr(visitors_scaling, "scaled:scale") +
+      attr(visitors_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = visitors, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="# of visitors",y="Vehicular Incidents [t]")
+
+print(visitors_plot_RBDB)
+
+ggsave("./figures/visitors_plot_RBDB.PNG",visitors_plot_RBDB)
+
+#Prior incidents
+prior_incidents_effect_RBDB <- effect("prior_RBDB_incidents_scaled",RBDB_global_model)
+plot(prior_incidents_effect_RBDB)
+
+mean_prior_incidents_scaling_RBDB <- scale(scaled_global_data$prior_RBDB_incidents)
+
+prior_incident_plot_RBDB <- as.data.frame(prior_incidents_effect_RBDB) %>%
+  mutate(
+    prior_RBDB_incidents = prior_RBDB_incidents_scaled * attr(mean_prior_incidents_scaling_RBDB, "scaled:scale") +
+      attr(mean_prior_incidents_scaling_RBDB, "scaled:center")
+  ) %>%
+  ggplot(aes(x = prior_RBDB_incidents, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior RBDB Incidents [t-1]",y="RBDB Incidents [t]")
+
+print(prior_incident_plot_RBDB)
+
+ggsave("./figures/prior_incidents_effect_RBDB.PNG",prior_incident_plot_RBDB)
+
+figure2_RBDB <- plot_grid(PRCP_plot_RBDB, snow_plot_RBDB, visitors_plot_RBDB, prior_incident_plot_RBDB)
+
+ggsave("./figures/effects_figure_RBDB.PNG",figure2_RBDB)
 
 
 # ===K-Fold Cross Validation
