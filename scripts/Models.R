@@ -6,16 +6,11 @@
 
 #Load packages and csv
 
+
 library(tidyverse)
-library(visreg)   # model fit visualizations
 library(car)      # linear model utilities
-library(lmerTest) # lmer() in lme4 package
-library(nlme)     # lme() in nlme package
 library(MASS)     # confidence intervals
-library(tscount)
-library(forecast)
 library(boot)   #K-Fold Cross Validation
-library(MuMIn)  #Model Selection
 library(AICcmodavg)  #AIC table
 library(effects)
 library(cowplot)
@@ -355,6 +350,8 @@ model_plot$data <- model_plot$data %>%
 # Update plot with color mapping for both points and error bars
 model_plot <- ggplot(data = model_plot$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor")
 
+
+summary(RBDB_global_model)
                                                                                                 # Print updated plot
 print(model_plot)
 
@@ -362,7 +359,7 @@ ggsave("./figures/total_model_figure.PNG",model_plot)
 
 summary(total_global_model)  #Verify. Try to make prettier if possible, but this looks good!.
 
-#==Predict figures effects. Errors increase with environmental variables and autoregressive term, so maybe log transform it. Make a Github issue and ask Kaitlyn.
+#==Predict figures effects. Errors increase with environmental variables and autoregressive term, so maybe log transform it. Make a Github issue and ask Kaitlyn. Make sure y axes are all the same scale, get rid of labels, group related variables together in th multipanel figure.
 
 
 # Precip
@@ -382,7 +379,7 @@ PRCP_plot <- as.data.frame(PRCP_effect) %>%
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Monthly Precipitation (mm)",y="Total Incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4",color = "darkred", alpha = 0.5) + theme_classic() + labs(x="Monthly Precipitation (mm)",y="Total Incidents [t]")
 
 print(PRCP_plot)
 
@@ -405,7 +402,7 @@ PRCP_prior_plot <- as.data.frame(precip_prior_effect) %>%
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior accumulated precipitation (mm)",y="Total Incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4",color = "darkred", alpha = 0.5) + theme_classic() + labs(x="Prior accumulated precipitation (mm)",y="Total Incidents [t]")
 
 print(PRCP_prior_plot)
 
@@ -428,7 +425,7 @@ snow_plot <- as.data.frame(mean_snow_effect) %>%
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Mean snow septh (cm)",y="Total incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4",color = "darkred", alpha = 0.5) + theme_classic() + labs(x="Mean snow depth (cm)",y="Total incidents [t]")
 
 print(snow_plot)
 
@@ -438,7 +435,7 @@ ggsave("./figures/mean_snow_effect.PNG",snow_plot)
 active_bears_effect <- effect("active_bears_scaled",total_global_model)
 plot(active_bears_effect)
 
-active_bears_scaling <- scale(scaled_global_data$active_bears_scaled)
+active_bears_scaling <- scale(scaled_global_data$active_bears)
 
 bear_plot <- as.data.frame(active_bears_effect) %>%
   mutate(
@@ -495,7 +492,7 @@ acorn_plot <- as.data.frame(acorn_effect) %>%
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="N30 acorn abundance",y="Total Incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4",color = "darkred", alpha = 0.5) + theme_classic() + labs(x="N30 acorn abundance",y="Total Incidents [t]")
 
 print(acorn_plot)
 
@@ -523,9 +520,31 @@ print(prior_incident_plot)
 
 ggsave("./figures/prior_incidents_effect.PNG",prior_incident_plot)
 
-figure2 <- plot_grid(PRCP_plot, PRCP_prior_plot, snow_plot, bear_plot, visitors_plot, acorn_plot, prior_incident_plot)
+#Remove Y axis labels from each individual plot and make the scale continuous (0-30)
 
-ggsave("./figures/effects_figure.PNG",figure2)
+PRCP_plot <- PRCP_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
+PRCP_prior_plot <- PRCP_prior_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
+snow_plot <- snow_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
+bear_plot <- bear_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
+visitors_plot <- visitors_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
+acorn_plot <- acorn_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
+prior_incident_plot <- prior_incident_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
+
+# Create single y-axis label
+total_y_label <- ggdraw() + draw_label("Total Incidents [t]", angle = 90, vjust = 1, hjust = 0.5)
+
+# Combine with plot_grid
+
+figure2 <- plot_grid(
+  plot_grid(total_y_label,PRCP_plot, PRCP_prior_plot, snow_plot, acorn_plot, ncol = 5,rel_widths = c(0.15,0.8,0.8,0.8,0.8)),
+  plot_grid(total_y_label,bear_plot, visitors_plot, prior_incident_plot, ncol = 4,rel_widths = c(0.15,1,1,1)),
+  ncol = 1,
+  rel_heights = c(1, 1)
+)
+
+print(figure2)
+
+ggsave("./figures/effects_figure.PNG", figure2)
 
 # ===RBDB Plots
 
@@ -651,6 +670,379 @@ figure2_RBDB <- plot_grid(PRCP_plot_RBDB, snow_plot_RBDB, visitors_plot_RBDB, pr
 
 ggsave("./figures/effects_figure_RBDB.PNG",figure2_RBDB)
 
+# ===non_aggressive
+
+time_series_food <- ggplot(data=scaled_global_data,aes(x=Month,y=non_aggressive_incidents))+geom_point(color="darkolivegreen4")+geom_path(color="darkolivegreen") + theme_classic() + labs(x="Month",y="Non-aggressive incidents [t]")
+
+ggsave("./figures/time_series_total_plot.PNG",time_series_total)
+
+
+model_plot_food <- stepwise_global_food %>% 
+  dwplot(show_intercept = TRUE,) %>% 
+  relabel_predictors("(Intercept)" = "Intercept",
+                     precip_prior_scaled ="Accumulated precipitation (4-12 months in advance)",
+                     mean_snow_depth_scaled ="Mean snow depth (cm)",
+                     active_bears_scaled ="# of active problem bears",
+                     visitors_scaled ="# of visitors",
+                     acorn_total_scaled ="N30 Acorn abundance",
+                     prior_non_aggressive_incidents_scaled ="Autoregressive term"
+  )
+
+# Modify dataset to classify estimates as positive or negative
+model_plot_food$data <- model_plot_food$data %>%
+  mutate(color_group = ifelse(estimate < 0, "Negative", "Positive"))
+
+# Update plot with color mapping for both points and error bars
+model_plot_food <- ggplot(data = model_plot_food$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor")
+
+# Print updated plot
+print(model_plot_food)
+
+ggsave("./figures/food_model_figure.PNG",model_plot_food)
+
+
+#==Predict figures effects. Errors increase with environmental variables and autoregressive term, so maybe log transform it. Make a Github issue and ask Kaitlyn.
+
+
+#Prior Precip
+
+precip_prior_effect_food <- effect("precip_prior_scaled",stepwise_global_food)
+plot(precip_prior_effect_food)
+
+PRCP_prior_scaling <- scale(scaled_global_data$precip_prior)
+
+PRCP_prior_plot_food <- as.data.frame(precip_prior_effect_food) %>%
+  mutate(
+    PRCP_prior = precip_prior_scaled * attr(PRCP_prior_scaling, "scaled:scale") +
+      attr(PRCP_prior_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = PRCP_prior, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior accumulated precipitation (mm)",y="Non-aggressive incidents [t]")
+
+print(PRCP_prior_plot_food)
+
+ggsave("./figures/Prior_PRCP_effect_food.PNG",PRCP_prior_plot_food)
+
+#Snow depth
+
+mean_snow_effect_food <- effect("mean_snow_depth_scaled",stepwise_global_food)
+plot(mean_snow_effect_food)
+
+mean_depth_scaling <- scale(scaled_global_data$mean_snow_depth)
+
+snow_plot_food <- as.data.frame(mean_snow_effect_food) %>%
+  mutate(
+    mean_depth = mean_snow_depth_scaled * attr(mean_depth_scaling, "scaled:scale") +
+      attr(mean_depth_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = mean_depth, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Mean snow septh (cm)",y="Non-aggressive incidents [t]")
+
+print(snow_plot_food)
+
+ggsave("./figures/mean_snow_effect_food.PNG",snow_plot_food)
+
+#active bears
+active_bears_effect_food <- effect("active_bears_scaled",stepwise_global_food)
+plot(active_bears_effect_food)
+
+active_bears_scaling <- scale(scaled_global_data$active_bears_scaled)
+
+bear_plot_food <- as.data.frame(active_bears_effect_food) %>%
+  mutate(
+    active_bears = active_bears_scaled * attr(active_bears_scaling, "scaled:scale") +
+      attr(active_bears_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = active_bears, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="# of active bears",y="Non-aggressive incidents [t]")
+
+print(bear_plot_food)
+
+ggsave("./figures/bear_effect_food.PNG",bear_plot_food)
+
+#visitors
+visitors_effect_food <- effect("visitors_scaled", stepwise_global_food)
+plot(visitors_effect_food)
+
+visitors_scaling <- scale(scaled_global_data$visitors)
+
+visitors_plot_food <- as.data.frame(visitors_effect_food) %>%
+  mutate(
+    visitors = visitors_scaled * attr(visitors_scaling, "scaled:scale") +
+      attr(visitors_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = visitors, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="# of visitors",y="Non-aggressive incidents [t]")
+
+print(visitors_plot_food)
+
+ggsave("./figures/visitors_plot_food.PNG",visitors_plot_food)
+
+#acorns
+
+acorn_effect_food <- effect("acorn_total_scaled",stepwise_global_food)
+plot(acorn_effect_food)
+
+acorn_scaling <- scale(scaled_global_data$acorn_total)
+
+acorn_plot_food <- as.data.frame(acorn_effect_food) %>%
+  mutate(
+    acorn = acorn_total_scaled * attr(acorn_scaling, "scaled:scale") +
+      attr(acorn_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = acorn, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="N30 acorn abundance",y="Non-aggressive incidents [t]")
+
+print(acorn_plot_food)
+
+ggsave("./figures/acorn_effect_food.PNG",acorn_plot_food)
+
+#Prior incidents
+prior_incidents_effect_food <- effect("prior_non_aggressive_incidents_scaled",stepwise_global_food)
+plot(prior_incidents_effect_food)
+
+mean_prior_incidents_scaling <- scale(scaled_global_data$prior_non_aggressive_incidents)
+
+prior_incident_plot_food <- as.data.frame(prior_incidents_effect_food) %>%
+  mutate(
+    prior_non_aggressive_incidents = prior_non_aggressive_incidents_scaled * attr(mean_prior_incidents_scaling, "scaled:scale") +
+      attr(mean_prior_incidents_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = prior_non_aggressive_incidents, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior non-aggressive incidents [t-1]",y="Non-aggressive incidents [t]")
+
+print(prior_incident_plot_food)
+
+ggsave("./figures/prior_incidents_effect_food.PNG",prior_incident_plot_food)
+
+figure2_food <- plot_grid(PRCP_prior_plot_food, snow_plot_food, bear_plot_food, visitors_plot_food, acorn_plot_food, prior_incident_plot_food)
+
+ggsave("./figures/effects_figure_food.PNG",figure2_food)
+
+# ===Aggressive Bears effects
+
+time_series_angry <- ggplot(data=scaled_global_data,aes(x=Month,y=aggressive_incidents))+geom_point(color="darkolivegreen4")+geom_path(color="darkolivegreen") + theme_classic() + labs(x="Month",y="Aggressive incidents [t]")
+
+ggsave("./figures/time_series_total_plot_angry.PNG",time_series_angry)
+
+
+
+model_plot_angry <- stepwise_global_angry %>% 
+  dwplot(show_intercept = TRUE,) %>% 
+  relabel_predictors("(Intercept)" = "Intercept",
+                     PRCP_USW00053150_scaled ="Monthly precipitation (mm)",
+                     precip_prior_scaled ="Accumulated precipitation (4-12 months in advance)",
+                     mean_snow_depth_scaled ="Mean snow depth (cm)",
+                     acorn_total_scaled ="N30 Acorn abundance",
+                     prior_total_incidents_scaled ="Autoregressive term"
+  )
+
+# Modify dataset to classify estimates as positive or negative
+model_plot_angry$data <- model_plot_angry$data %>%
+  mutate(color_group = ifelse(estimate < 0, "Negative", "Positive"))
+
+# Update plot with color mapping for both points and error bars
+model_plot_angry <- ggplot(data = model_plot_angry$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor")
+
+# Print updated plot
+print(model_plot_angry)
+
+ggsave("./figures/total_model_figure_angry.PNG",model_plot_angry)
+
+
+#==Predict figures effects. Errors increase with environmental variables and autoregressive term, so maybe log transform it. Make a Github issue and ask Kaitlyn.
+
+
+# Precip
+
+PRCP_effect_angry <- effect("PRCP_USW00053150_scaled", stepwise_global_angry)
+plot(PRCP_effect_angry)
+
+PRCP_USW00053150_scaling <- scale(scaled_global_data$PRCP_USW00053150)
+
+PRCP_plot_angry <- as.data.frame(PRCP_effect_angry) %>%
+  mutate(
+    PRCP_USW00053150 = PRCP_USW00053150_scaled * attr(PRCP_USW00053150_scaling, "scaled:scale") +
+      attr(PRCP_USW00053150_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = PRCP_USW00053150, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Monthly Precipitation (mm)",y="Aggressive incidents [t]")
+
+print(PRCP_plot_angry)
+
+ggsave("./figures/PRCP_effect_angry.PNG",PRCP_plot_angry)
+
+#Prior Precip
+
+precip_prior_effect_angry <- effect("precip_prior_scaled",stepwise_global_angry)
+plot(precip_prior_effect_angry)
+
+PRCP_prior_scaling <- scale(scaled_global_data$precip_prior)
+
+PRCP_prior_plot_angry <- as.data.frame(precip_prior_effect_angry) %>%
+  mutate(
+    PRCP_prior = precip_prior_scaled * attr(PRCP_prior_scaling, "scaled:scale") +
+      attr(PRCP_prior_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = PRCP_prior, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior accumulated precipitation (mm)",y="Aggressive incidents [t]")
+
+print(PRCP_prior_plot_angry)
+
+ggsave("./figures/Prior_PRCP_effect_angry.PNG",PRCP_prior_plot_angry)
+
+#Snow depth
+
+mean_snow_effect_angry <- effect("mean_snow_depth_scaled",stepwise_global_angry)
+plot(mean_snow_effect_angry)
+
+mean_depth_scaling <- scale(scaled_global_data$mean_snow_depth)
+
+snow_plot_angry <- as.data.frame(mean_snow_effect_angry) %>%
+  mutate(
+    mean_depth = mean_snow_depth_scaled * attr(mean_depth_scaling, "scaled:scale") +
+      attr(mean_depth_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = mean_depth, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Mean snow septh (cm)",y="Aggressive incidents [t]")
+
+print(snow_plot_angry)
+
+ggsave("./figures/mean_snow_effect_angry.PNG",snow_plot_angry)
+
+
+#acorns
+
+acorn_effect <- effect("acorn_total_scaled",total_global_model)
+plot(acorn_effect)
+
+acorn_scaling <- scale(scaled_global_data$acorn_total)
+
+acorn_plot <- as.data.frame(acorn_effect) %>%
+  mutate(
+    acorn = acorn_total_scaled * attr(acorn_scaling, "scaled:scale") +
+      attr(acorn_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = acorn, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="N30 acorn abundance",y="Total Incidents [t]")
+
+print(acorn_plot)
+
+ggsave("./figures/acorn_effect.PNG",acorn_plot)
+
+#Prior incidents
+prior_incidents_effect <- effect("prior_total_incidents_scaled",total_global_model)
+plot(prior_incidents_effect)
+
+mean_prior_incidents_scaling <- scale(scaled_global_data$prior_total_incidents)
+
+prior_incident_plot <- as.data.frame(prior_incidents_effect) %>%
+  mutate(
+    prior_total_incidents = prior_total_incidents_scaled * attr(mean_prior_incidents_scaling, "scaled:scale") +
+      attr(mean_prior_incidents_scaling, "scaled:center")
+  ) %>%
+  ggplot(aes(x = prior_total_incidents, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior Total Incidents [t-1]",y="Total Incidents [t]")
+
+print(prior_incident_plot)
+
+ggsave("./figures/prior_incidents_effect.PNG",prior_incident_plot)
+
+figure2 <- plot_grid(PRCP_plot, PRCP_prior_plot, snow_plot, bear_plot, visitors_plot, acorn_plot, prior_incident_plot)
+
+ggsave("./figures/effects_figure.PNG",figure2)
+
+
+# ====Multipanel figure of models for each response
+
+
+model_plot <- model_plot + theme(axis.title.y = element_blank(),axis.title.x = element_blank())
+model_plot_RBDB <- model_plot_RBDB + theme(axis.title.y = element_blank(),axis.title.x = element_blank())
+model_plot_food <- model_plot_food + theme(axis.title.y = element_blank(),axis.title.x = element_blank())
+model_plot_angry <- model_plot_angry + theme(axis.title.y = element_blank(),axis.title.x = element_blank())
+
+# Create single y-axis label
+x_label <- ggdraw() + draw_label("Coefficient",  vjust = 0.5, hjust = 0.5,x=0.75) + 
+theme(plot.margin = margin(t = 5, r = 20, b = 5, l = 5))
+total_label <- ggdraw() + draw_label("a) Total Monthly Incidents")
+RBDB_label <- ggdraw() + draw_label("b) Vehicular Incidents")
+food_label <- ggdraw() + draw_label("c) Foraging Incidents")
+angry_label <- ggdraw() + draw_label("d) Aggressive Incidents")
+
+# Combine with plot_grid
+
+model_plot <- plot_grid(total_label, model_plot, nrow = 2,rel_heights = c(0.10,1))
+
+model_plot_RBDB <- plot_grid(RBDB_label, model_plot_RBDB, nrow = 2,rel_heights = c(0.10,1))
+
+model_plot_food <- plot_grid(food_label, model_plot_food, nrow = 2,rel_heights = c(0.10,1))
+
+model_plot_angry <- plot_grid(angry_label, model_plot_angry, nrow = 2,rel_heights = c(0.10,1))
+
+figure3 <- plot_grid(
+  plot_grid(
+    model_plot,
+    model_plot_RBDB,
+    x_label,
+    nrow = 3,
+    rel_heights = c(1,1,0.15)
+  ),
+  plot_grid(
+    model_plot_food,
+    model_plot_angry,
+    x_label,
+    nrow = 3,
+    rel_heights = c(1, 1,0.15)
+  ),
+  ncol=2)
+
+print(figure3)
+
+ggsave("./figures/models_figure.PNG",figure3)
 
 # ===K-Fold Cross Validation
 
@@ -658,28 +1050,48 @@ ggsave("./figures/effects_figure_RBDB.PNG",figure2_RBDB)
 # leave-one-out and 10-fold cross-validation prediction error for 
 # the mammals data set.
 
-(cv.err <- cv.glm(scaled_global_data, stepwise_global)$delta)
-(cv.err.10 <- cv.glm(scaled_global_data, stepwise_global, K = 10)$delta) #(98.17553, 97.23873). Seems very high!
 
-(cv.err.10 <- cv.glm(scaled_global_data, stepwise_global)$delta)
 
-intercept_only <- glm(total_incidents ~ 1, family=poisson, data=scaled_global_data)
+cv.err.10.totalglobal <- cv.glm(scaled_global_data, total_global_model, K = 10)$delta #93
 
-cv.err_intercept <- cv.glm(scaled_global_data,intercept_only)
+cv.err.10.totalm1 <- cv.glm(scaled_global_data, m1_total, K = 10)$delta  #120
 
-cv.err_intercept$delta
+cv.err.10.totalm2 <- cv.glm(scaled_global_data, m2_total, K = 10)$delta  #118
 
-cv.glm(scaled_global_data,total_global_model, K=10)$delta
-# 97.17167 96.31279
+cv.err.10.totalm3 <- cv.glm(scaled_global_data, m3_total, K = 10)$delta  #157
 
-cv.glm(scaled_global_data,total_global_model, K=10)$delta
-# 96.97496, 95.21131
+cv.err.10.RBDBstepglobal <- cv.glm(scaled_global_data,stepwise_global_RBDB)$delta   #5.11
 
-cv.glm(scaled_global_data,m1_total, K=10)$delta
+cv.err.10.RBDBglobal <- cv.glm(scaled_global_data,RBDB_global_model,K=10)$delta  #  5.49
 
-?cv.glm
+cv.err.10.RBDBm1 <- cv.glm(scaled_global_data, m1_RBDB, K = 10)$delta   #5.72
 
-temperature_model <- 
+cv.err.10.RBDBstepm1 <- cv.glm(scaled_global_data,stepwise_m1_RBDB, K = 10)$delta #5.71
+
+cv.err.10.RBDBm2 <- cv.glm(scaled_global_data, m2_RBDB, K = 10)$delta   #5.17
+
+cv.err.10.RBDBm3 <- cv.glm(scaled_global_data, m3_RBDB, K = 10)$delta   #7.28
+
+cv.err.10.foodstepglobal <- cv.glm(scaled_global_data,stepwise_global_food)$delta  #83.7
+
+cv.err.10.foodglobal <- cv.glm(scaled_global_data,food_global_model,K=10)$delta #91
+
+cv.err.10.foodm1 <- cv.glm(scaled_global_data, m1_food, K = 10)$delta  #121
+
+cv.err.10.foodstepm1 <- cv.glm(scaled_global_data,stepwise_m1_food, K = 10)$delta   #134
+
+cv.err.10.foodm2 <- cv.glm(scaled_global_data, m2_food, K = 10)$delta   #250
+
+cv.err.10.foodm3 <- cv.glm(scaled_global_data, m3_food, K = 10)$delta  #182
+
+
+cv.err.10.angryglobal <- cv.glm(scaled_global_data,angry_global_model,K=10)$delta  #1.26
+
+cv.err.10.angrym1 <- cv.glm(scaled_global_data, m1_angry, K = 10)$delta    #1.15
+
+cv.err.10.angrym2 <- cv.glm(scaled_global_data, m2_angry, K = 10)$delta   # 1.27
+
+cv.err.10.angrym3 <- cv.glm(scaled_global_data, m3_angry, K = 10)$delta  #1.32
 
 vif(total_global_model)
 # Report VIF scores in results as part of reasoning for removing correlated. Make note in discussion that while temperature is probably a proxy of natural food supply, it was too correlated with precip and visitation to include in the model. Finish and make pretty effect plots, make the error a github issue to ask Kaitlyn. Just use a K of ten in the K fold, cite Jenny's paper she sent in slack. Change color of coefficients plot to indicate positive or negative. Finish and update AIC tables, and report tables for the stepwise regression.

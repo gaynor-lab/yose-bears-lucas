@@ -41,7 +41,7 @@ reshaped_climate_data <- climate_data %>%
     # Include all columns except DATE
     names_sep = "_"       # Add a separator for clarity (e.g., TMAX_STATION1, TMAX_STATION2)
   ) %>% 
-  select(-(STATION_USC00049855:ELEVATION_USW00053150))
+  dplyr::select(-(STATION_USC00049855:ELEVATION_USW00053150))
 
 # Check to see which station has the least NAs
 
@@ -73,7 +73,7 @@ ID_incident_data <- ID_incident_data %>%
 
 
 
-# Pull out month columns and specify if incidents are agressive or not.
+# Pull out month columns and specify if incidents are agressive or not. Filter out wilderness incidents with no loss of property of injury
 
 ID_incident_data <- ID_incident_data %>%
   mutate(Month = as.factor(format(ymd(IncidentDate), "%Y-%m")), Aggressive =
@@ -83,7 +83,8 @@ ID_incident_data <- ID_incident_data %>%
                BlameFactorDesc == "Bluff Charge - Defensive" ~ "Yes",
                .default = "No"
              )
-           )))
+           ))) %>% 
+  filter(IncidentDescription!="Sierra 29 called into dispatch that a visitor used bear spray on a squirrel along the trail and 8 other people were caught in the over spray complaining of itchy eyes and difficulty breathing. Likely bear spray used by a group of teenagers.")
 
   
 
