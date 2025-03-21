@@ -121,13 +121,29 @@ AIC(t3)
 
 # ===Total Incidents
 
-total_global_model <- glm(
+total_global_model_p <- glm(
   total_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
-    acorn_total_scaled+ prior_total_incidents_scaled,
-  family = poisson,
+    acorn_total_scaled+ prior_total_incidents_scaled, family = "poisson",
   data = scaled_global_data
 )
+
+
+
+total_global_model_nb <- glm.nb(
+  total_incidents ~ PRCP_USW00053150_scaled +
+    precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
+    acorn_total_scaled+ prior_total_incidents_scaled, data = scaled_global_data)
+
+residuals_poisson <- residuals(total_global_model_p)
+qqnorm(residuals_poisson)
+qqline(residuals_poisson)
+hist(residuals_poisson)
+
+residuals_nb <- residuals(total_global_model_nb)
+qqnorm(residuals_nb)
+qqline(residuals_nb)
+hist(residuals_nb)
 
 #Gopal: If it's an autoregressive term, you have to specify it as such somehow.
 
@@ -141,10 +157,9 @@ stepwise_global_total <- stepAIC(total_global_model)
 
 summary(stepwise_global_total)   #AIC 807.6. No change.
 
-m1_total <- glm(
+m1_total <- glm.nb(
   total_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + prior_total_incidents_scaled,
-  family = poisson,
   data = scaled_global_data
 )
 
@@ -155,11 +170,11 @@ stepwise_m1 <- stepAIC(m1_total)
 
 summary(stepwise_m1)  #AIC 936.91. No change.
 
-m2_total <- glm(total_incidents ~ visitors_scaled + prior_total_incidents_scaled, family = poisson, data = scaled_global_data)
+m2_total <- glm.nb(total_incidents ~ visitors_scaled + prior_total_incidents_scaled, data = scaled_global_data)
 
 summary(m2_total)  # AIC 921.51
 
-m3_total <- glm(total_incidents ~ active_bears_scaled + prior_total_incidents_scaled, family = poisson, data = scaled_global_data)
+m3_total <- glm.nb(total_incidents ~ active_bears_scaled + prior_total_incidents_scaled, data = scaled_global_data)
 
 summary(m3_total)   #1102.1
 
@@ -189,7 +204,9 @@ RBDB_global_model <- glm(
 summary(RBDB_global_model)  #AIC 373.15
 anova(RBDB_global_model)
 
-stepwise_global_RBDB <- stepAIC(RBDB_global_model)  #Gets rid of autoregressive term. Add it back.
+stepwise_global_RBDB <- stepAIC(RBDB_global_model)  #Gets rid of autoregressive term. Add it back
+
+
 
 summary(stepwise_global_RBDB)   #AIC 366.99
 
@@ -1051,7 +1068,7 @@ ggsave("./figures/models_figure.PNG",figure3)
 # the mammals data set.
 
 
-
+cv.err.10.totalstepglobal <- cv.glm(scaled_global_data,stepwise_global_total,K=10)$delta
 cv.err.10.totalglobal <- cv.glm(scaled_global_data, total_global_model, K = 10)$delta #93
 
 cv.err.10.totalm1 <- cv.glm(scaled_global_data, m1_total, K = 10)$delta  #120
@@ -1071,6 +1088,7 @@ cv.err.10.RBDBstepm1 <- cv.glm(scaled_global_data,stepwise_m1_RBDB, K = 10)$delt
 cv.err.10.RBDBm2 <- cv.glm(scaled_global_data, m2_RBDB, K = 10)$delta   #5.17
 
 cv.err.10.RBDBm3 <- cv.glm(scaled_global_data, m3_RBDB, K = 10)$delta   #7.28
+
 
 cv.err.10.foodstepglobal <- cv.glm(scaled_global_data,stepwise_global_food)$delta  #83.7
 
@@ -1093,5 +1111,14 @@ cv.err.10.angrym2 <- cv.glm(scaled_global_data, m2_angry, K = 10)$delta   # 1.27
 
 cv.err.10.angrym3 <- cv.glm(scaled_global_data, m3_angry, K = 10)$delta  #1.32
 
+
+# ===VIF scores
 vif(total_global_model)
 # Report VIF scores in results as part of reasoning for removing correlated. Make note in discussion that while temperature is probably a proxy of natural food supply, it was too correlated with precip and visitation to include in the model. Finish and make pretty effect plots, make the error a github issue to ask Kaitlyn. Just use a K of ten in the K fold, cite Jenny's paper she sent in slack. Change color of coefficients plot to indicate positive or negative. Finish and update AIC tables, and report tables for the stepwise regression.
+
+# === Check for overdispersion
+
+total.global.dispersion.ratio <- total_global_model$deviance / total_global_model$df.residual
+total.m1.dispersion.ratio <- m1_total$deviance / m1_total$df.residual
+total.m2.dispersion.ratio <- m2_total$deviance / m2_total$df.residual
+total.m3.dispersion.ratio <- m3_total$deviance / m3_total$df.residual
