@@ -62,9 +62,14 @@ lagged_global_data <- global_data %>%
 #Plot histograms of all raw variables
 
 hist(lagged_global_data$total_incidents)
+mean(lagged_global_data$total_incidents)/var(lagged_global_data$total_incidents)   #Not poisson distributed
 hist(lagged_global_data$RBDB_incidents)
-hist(lagged_global_data$non_aggressive_incidents)    #Poisson distributed
+mean(lagged_global_data$RBDB_incidents)/var(lagged_global_data$RBDB_incidents)  #not poisson distributed
+hist(lagged_global_data$non_aggressive_incidents)
+mean(lagged_global_data$non_aggressive_incidents)/var(lagged_global_data$non_aggressive_incidents)   #not poisson
 hist(lagged_global_data$aggressive_incidents)
+mean(lagged_global_data$aggressive_incidents)/var(lagged_global_data$aggressive_incidents)   #not poisson
+
 
 hist(lagged_global_data$TAVG_USW00053150)
 hist(lagged_global_data$T_RANGE_USW00053150)   #Potentially kind of left skewed
@@ -98,15 +103,7 @@ scaled_global_data <- lagged_global_data %>%
 
 global_corr_matrix <- cor(scaled_global_data[, c("PRCP_USW00053150_scaled","T_RANGE_USW00053150_scaled","TAVG_USW00053150_scaled","precip_prior_scaled","mean_snow_depth_scaled","active_bears_scaled","visitors_scaled","acorn_total_scaled","prior_total_incidents_scaled","prior_RBDB_incidents_scaled","prior_non_aggressive_incidents_scaled","prior_aggressive_incidents_scaled")])
 
-t1 <-  glm(total_incidents ~ TAVG_USW00053150,  family = poisson, data = scaled_global_data) 
 
-t2 <-  glm(total_incidents ~ T_RANGE_USW00053150,  family = poisson, data = scaled_global_data) 
-
-AIC(t1) #934.1009
-AIC(t2)  #1217.4
-t3 <- glm(total_incidents ~ PRCP_USW00053150, family = poisson, data=scaled_global_data)
-
-AIC(t3)
 
 # Use average
 
@@ -121,41 +118,28 @@ AIC(t3)
 
 # ===Total Incidents
 
-total_global_model_p <- glm(
-  total_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
-    acorn_total_scaled+ prior_total_incidents_scaled, family = "poisson",
-  data = scaled_global_data
-)
-
-
-
-total_global_model_nb <- glm.nb(
+total_global_model <- glm.nb(
   total_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
     acorn_total_scaled+ prior_total_incidents_scaled, data = scaled_global_data)
 
-residuals_poisson <- residuals(total_global_model_p)
-qqnorm(residuals_poisson)
-qqline(residuals_poisson)
-hist(residuals_poisson)
 
-residuals_nb <- residuals(total_global_model_nb)
-qqnorm(residuals_nb)
-qqline(residuals_nb)
-hist(residuals_nb)
-
-#Gopal: If it's an autoregressive term, you have to specify it as such somehow.
-
-#Temp correlates with a bunch of things. Get rid of it, maybe include interaction only.
+residuals_total_global <- residuals(total_global_model)
+qqnorm(residuals_total_global)
+qqline(residuals_total_global)
+hist(residuals_total_global)
 
 summary(total_global_model)  #AIC 807.6
-
 anova(total_global_model)
 
 stepwise_global_total <- stepAIC(total_global_model)
 
 summary(stepwise_global_total)   #AIC 807.6. No change.
+
+residuals_total_global_step <- residuals(stepwise_global_total)
+qqnorm(residuals_total_global_step)
+qqline(residuals_total_global_step)
+hist(residuals_total_global_step)
 
 m1_total <- glm.nb(
   total_incidents ~ PRCP_USW00053150_scaled +
@@ -163,18 +147,38 @@ m1_total <- glm.nb(
   data = scaled_global_data
 )
 
+residuals_total_m1 <- residuals(m1_total)
+qqnorm(residuals_total_m1)
+qqline(residuals_total_m1)
+hist(residuals_total_m1)
+
 summary(m1_total)  #AIC 936.91
 anova(m1_total)
 
 stepwise_m1 <- stepAIC(m1_total)
 
+residuals_total_m1_step <- residuals(stepwise_m1)
+qqnorm(residuals_total_m1_step)
+qqline(residuals_total_m1_step)
+hist(residuals_total_m1_step)
+
 summary(stepwise_m1)  #AIC 936.91. No change.
 
 m2_total <- glm.nb(total_incidents ~ visitors_scaled + prior_total_incidents_scaled, data = scaled_global_data)
 
+residuals_total_m2 <- residuals(m2_total)
+qqnorm(residuals_total_m2)
+qqline(residuals_total_m2)
+hist(residuals_total_m2)
+
 summary(m2_total)  # AIC 921.51
 
 m3_total <- glm.nb(total_incidents ~ active_bears_scaled + prior_total_incidents_scaled, data = scaled_global_data)
+
+residuals_total_m3 <- residuals(m3_total)
+qqnorm(residuals_total_m3)
+qqline(residuals_total_m3)
+hist(residuals_total_m3)
 
 summary(m3_total)   #1102.1
 
@@ -193,44 +197,63 @@ aictab(cand.set = total_models, modnames = total_model.names)
 
 # ===RBDB Incidents
 
-RBDB_global_model <- glm(
+RBDB_global_model <- glm.nb(
   RBDB_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
     acorn_total_scaled + prior_RBDB_incidents_scaled,
-  family = poisson,
   data = scaled_global_data
 )
+
+residuals_RBDB_global <- residuals(RBDB_global_model)
+qqnorm(residuals_RBDB_global)
+qqline(residuals_RBDB_global)
+hist(residuals_RBDB_global)
 
 summary(RBDB_global_model)  #AIC 373.15
 anova(RBDB_global_model)
 
 stepwise_global_RBDB <- stepAIC(RBDB_global_model)  #Gets rid of autoregressive term. Add it back
 
+stepwise_global_RBDB <- glm.nb(RBDB_incidents ~ mean_snow_depth_scaled + visitors_scaled + prior_RBDB_incidents_scaled, data = scaled_global_data)
 
+residuals_RBDB_global_step <- residuals(stepwise_global_RBDB)
+qqnorm(residuals_RBDB_global_step)
+qqline(residuals_RBDB_global_step)
+hist(residuals_RBDB_global_step)
 
 summary(stepwise_global_RBDB)   #AIC 366.99
 
-stepwise_global_RBDB <- glm(RBDB_incidents ~ PRCP_USW00053150_scaled + mean_snow_depth_scaled + 
-      visitors_scaled + prior_RBDB_incidents_scaled, family = poisson, data = scaled_global_data)
-
-m1_RBDB <- glm(
+m1_RBDB <- glm.nb(
   RBDB_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled +  prior_RBDB_incidents_scaled,
-  family = poisson,
   data = scaled_global_data
 )
+
+residuals_RBDB_m1 <- residuals(m1_RBDB)
+qqnorm(residuals_RBDB_m1)
+qqline(residuals_RBDB_m1)
+hist(residuals_RBDB_m1)
 
 summary(m1_RBDB)  #AIC 398.28
 anova(m1_RBDB)
 
 stepwise_m1_RBDB <- stepAIC(m1_RBDB)
+
+stepwise_m1_RBDB <- glm.nb(RBDB_incidents ~ PRCP_USW00053150_scaled + mean_snow_depth_scaled + 
+                             acorn_total_scaled + prior_RBDB_incidents_scaled,data=scaled_global_data)
+
+residuals_RBDB_m1_step <- residuals(stepwise_m1_RBDB)
+qqnorm(residuals_RBDB_m1_step)
+qqline(residuals_RBDB_m1_step)
+hist(residuals_RBDB_m1_step)
+
 summary(stepwise_m1_RBDB)  #AIC 396.71
 
-m2_RBDB <- glm(RBDB_incidents ~ visitors_scaled + prior_RBDB_incidents_scaled, family = poisson, data = scaled_global_data)
+m2_RBDB <- glm.nb(RBDB_incidents ~ visitors_scaled + prior_RBDB_incidents_scaled, data = scaled_global_data)
 
 summary(m2_RBDB)  # AIC 378.74
 
-m3_RBDB <- glm(RBDB_incidents ~ active_bears_scaled + prior_RBDB_incidents_scaled, family = poisson, data = scaled_global_data)
+m3_RBDB <- glm.nb(RBDB_incidents ~ active_bears_scaled + prior_RBDB_incidents_scaled,, data = scaled_global_data)
 
 summary(m3_RBDB)   #463.36
 
@@ -244,41 +267,68 @@ aictab(cand.set = RBDB_models, modnames = RBDB_model.names)
 
 # ===Non_aggressive food incidents
 
-food_global_model <- glm(
+food_global_model <- glm.nb(
   non_aggressive_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
     acorn_total_scaled + prior_non_aggressive_incidents_scaled,
-  family = poisson,
   data = scaled_global_data
 )
 
-summary(food_global_model)  #AIC 800.18
+residuals_food_global <- residuals(food_global_model)
+qqnorm(residuals_food_global)
+qqline(residuals_food_global)
+hist(residuals_food_global)
 
+summary(food_global_model)  #AIC 800.18
 anova(food_global_model)
 
 stepwise_global_food <- stepAIC(food_global_model)
 
 summary(stepwise_global_food)   #AIC 798.62
 
-m1_food <- glm(
+residuals_food_global_step <- residuals(stepwise_global_food)
+qqnorm(residuals_food_global_step)
+qqline(residuals_food_global_step)
+hist(residuals_food_global_step)
+
+m1_food <- glm.nb(
   non_aggressive_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + prior_non_aggressive_incidents_scaled,
-  family = poisson,
   data = scaled_global_data
 )
+
+residuals_food_m1 <- residuals(m1_food)
+qqnorm(residuals_food_m1)
+qqline(residuals_food_m1)
+hist(residuals_food_m1)
 
 summary(m1_food)  # 917.79
 anova(m1_food)
 
 stepwise_m1_food <- stepAIC(m1_food)
 
+residuals_food_m1_step <- residuals(stepwise_m1_food)
+qqnorm(residuals_food_m1_step)
+qqline(residuals_food_m1_step)
+hist(residuals_food_m1_step)
+
 summary(stepwise_m1_food)  #AIC 917.79
 
-m2_food <- glm(non_aggressive_incidents ~ visitors_scaled + prior_non_aggressive_incidents_scaled, family = poisson, data = scaled_global_data)
+m2_food <- glm.nb(non_aggressive_incidents ~ visitors_scaled + prior_non_aggressive_incidents_scaled, data = scaled_global_data)
+
+residuals_food_m2 <- residuals(m2_food)
+qqnorm(residuals_food_m2)
+qqline(residuals_food_m2)
+hist(residuals_food_m2)
 
 summary(m2_food)  # AIC 913.89
 
-m3_food <- glm(non_aggressive_incidents ~  active_bears_scaled + prior_non_aggressive_incidents_scaled, family = poisson, data = scaled_global_data)
+m3_food <- glm.nb(non_aggressive_incidents ~  active_bears_scaled + prior_non_aggressive_incidents_scaled, data = scaled_global_data)
+
+residuals_food_m3 <- residuals(m3_food)
+qqnorm(residuals_food_m3)
+qqline(residuals_food_m3)
+hist(residuals_food_m3)
 
 summary(m3_food)   #996.82
 
@@ -292,41 +342,74 @@ aictab(cand.set = food_models, modnames = food_model.names)
 
 # ===Aggressive food incidents
 
-angry_global_model <- glm(
+angry_global_model <- glm.nb(
   aggressive_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
     acorn_total_scaled + prior_aggressive_incidents_scaled,
-  family = poisson,
   data = scaled_global_data
 )
 
-summary(angry_global_model)  #AIC 800.18
+residuals_angry_global <- residuals(angry_global_model)
+qqnorm(residuals_angry_global)
+qqline(residuals_angry_global)
+hist(residuals_angry_global)
 
+summary(angry_global_model)  #AIC 800.18
 anova(angry_global_model)
 
 stepwise_global_angry <- stepAIC(angry_global_model)
 
+stepwise_global_angry <- glm.nb(aggressive_incidents ~ PRCP_USW00053150_scaled + 
+                                  precip_prior_scaled + mean_snow_depth_scaled + prior_aggressive_incidents_scaled, data = scaled_global_data)
+
+residuals_angry_global_step <- residuals(stepwise_global_angry)
+qqnorm(residuals_angry_global_step)
+qqline(residuals_angry_global_step)
+hist(residuals_angry_global_step)
+
 summary(stepwise_global_angry)   #AIC 798.62
 
-m1_angry <- glm(
+m1_angry <- glm.nb(
   aggressive_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + prior_aggressive_incidents_scaled,
-  family = poisson,
   data = scaled_global_data
 )
+
+residuals_angry_m1 <- residuals(m1_angry)
+qqnorm(residuals_angry_m1)
+qqline(residuals_angry_m1)
+hist(residuals_angry_m1)
 
 summary(m1_angry)  # 917.79
 anova(m1_angry)
 
 stepwise_m1_angry <- stepAIC(m1_angry)
 
+stepwise_m1_angry <- glm.nb(aggressive_incidents ~ PRCP_USW00053150_scaled + 
+                              precip_prior_scaled + mean_snow_depth_scaled + prior_aggressive_incidents_scaled, data = scaled_global_data)
+
+residuals_angry_m1 <- residuals(stepwise_m1_angry)
+qqnorm(residuals_angry_m1)
+qqline(residuals_angry_m1)
+hist(residuals_angry_m1)
+
 summary(stepwise_m1_angry)  #AIC 917.79
 
-m2_angry <- glm(aggressive_incidents ~ visitors_scaled + prior_aggressive_incidents_scaled, family = poisson, data = scaled_global_data)
+m2_angry <- glm.nb(aggressive_incidents ~ visitors_scaled + prior_aggressive_incidents_scaled, data = scaled_global_data)
+
+residuals_angry_m2 <- residuals(m2_angry)
+qqnorm(residuals_angry_m2)
+qqline(residuals_angry_m2)
+hist(residuals_angry_m2)
 
 summary(m2_food)  # AIC 913.89
 
-m3_angry <- glm(aggressive_incidents ~  active_bears_scaled + prior_aggressive_incidents_scaled, family = poisson, data = scaled_global_data)
+m3_angry <- glm.nb(aggressive_incidents ~  active_bears_scaled + prior_aggressive_incidents_scaled, data = scaled_global_data)
+
+residuals_angry_m3 <- residuals(m3_angry)
+qqnorm(residuals_angry_m3)
+qqline(residuals_angry_m3)
+hist(residuals_angry_m3)
 
 summary(m3_food)   #996.82
 
@@ -348,15 +431,12 @@ ggsave("./figures/time_series_total_plot.PNG",time_series_total)
 library(dotwhisker) 
 library(NatParksPalettes)
 
-model_plot <- total_global_model %>% 
+model_plot <- stepwise_global_total %>% 
   dwplot(show_intercept = TRUE,) %>% 
   relabel_predictors("(Intercept)" = "Intercept",
-                     PRCP_USW00053150_scaled ="Monthly precipitation (mm)",
-                     precip_prior_scaled ="Accumulated precipitation (4-12 months in advance)",
                      mean_snow_depth_scaled ="Mean snow depth (cm)",
                      active_bears_scaled ="# of active problem bears",
                      visitors_scaled ="# of visitors",
-                     acorn_total_scaled ="N30 Acorn abundance",
                      prior_total_incidents_scaled ="Autoregressive term"
   )
 
@@ -379,55 +459,9 @@ summary(total_global_model)  #Verify. Try to make prettier if possible, but this
 #==Predict figures effects. Errors increase with environmental variables and autoregressive term, so maybe log transform it. Make a Github issue and ask Kaitlyn. Make sure y axes are all the same scale, get rid of labels, group related variables together in th multipanel figure.
 
 
-# Precip
-
-PRCP_effect <- effect("PRCP_USW00053150_scaled", total_global_model)
-plot(PRCP_effect)
-
-PRCP_USW00053150_scaling <- scale(scaled_global_data$PRCP_USW00053150)
-
-PRCP_plot <- as.data.frame(PRCP_effect) %>%
-  mutate(
-    PRCP_USW00053150 = PRCP_USW00053150_scaled * attr(PRCP_USW00053150_scaling, "scaled:scale") +
-      attr(PRCP_USW00053150_scaling, "scaled:center")
-  ) %>%
-  ggplot(aes(x = PRCP_USW00053150, y = fit)) +
-  geom_hline(yintercept =
-               0,
-             linetype = "dotted",
-             color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4",color = "darkred", alpha = 0.5) + theme_classic() + labs(x="Monthly Precipitation (mm)",y="Total Incidents [t]")
-
-print(PRCP_plot)
-
-ggsave("./figures/PRCP_effect.PNG",PRCP_plot)
-
-#Prior Precip
-
-precip_prior_effect <- effect("precip_prior_scaled",total_global_model)
-plot(precip_prior_effect)
-
-PRCP_prior_scaling <- scale(scaled_global_data$precip_prior)
-
-PRCP_prior_plot <- as.data.frame(precip_prior_effect) %>%
-  mutate(
-    PRCP_prior = precip_prior_scaled * attr(PRCP_prior_scaling, "scaled:scale") +
-      attr(PRCP_prior_scaling, "scaled:center")
-  ) %>%
-  ggplot(aes(x = PRCP_prior, y = fit)) +
-  geom_hline(yintercept =
-               0,
-             linetype = "dotted",
-             color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4",color = "darkred", alpha = 0.5) + theme_classic() + labs(x="Prior accumulated precipitation (mm)",y="Total Incidents [t]")
-
-print(PRCP_prior_plot)
-
-ggsave("./figures/Prior_PRCP_effect.PNG",PRCP_prior_plot)
-
 #Snow depth
 
-mean_snow_effect <- effect("mean_snow_depth_scaled",total_global_model)
+mean_snow_effect <- effect("mean_snow_depth_scaled",stepwise_global_total)
 plot(mean_snow_effect)
 
 mean_depth_scaling <- scale(scaled_global_data$mean_snow_depth)
@@ -436,20 +470,21 @@ snow_plot <- as.data.frame(mean_snow_effect) %>%
   mutate(
     mean_depth = mean_snow_depth_scaled * attr(mean_depth_scaling, "scaled:scale") +
       attr(mean_depth_scaling, "scaled:center")
-  ) %>%
+  ) %>% 
   ggplot(aes(x = mean_depth, y = fit)) +
   geom_hline(yintercept =
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4",color = "darkred", alpha = 0.5) + theme_classic() + labs(x="Mean snow depth (cm)",y="Total incidents [t]")
+  geom_line(color="darkgreen") + 
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen", alpha = 0.5) + theme_classic() + labs(x="Mean snow depth",y="Total incidents [t]")
 
 print(snow_plot)
 
 ggsave("./figures/mean_snow_effect.PNG",snow_plot)
 
 #active bears
-active_bears_effect <- effect("active_bears_scaled",total_global_model)
+active_bears_effect <- effect("active_bears_scaled",stepwise_global_total)
 plot(active_bears_effect)
 
 active_bears_scaling <- scale(scaled_global_data$active_bears)
@@ -464,14 +499,16 @@ bear_plot <- as.data.frame(active_bears_effect) %>%
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="# of active bears",y="Total Incidents [t]")
+  geom_line(color="darkred")+
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4", alpha = 0.5) + theme_classic() + labs(x="# of active bears",y="Total Incidents [t]")
 
 print(bear_plot)
 
 ggsave("./figures/bear_effect.PNG",bear_plot)
 
 #visitors
-visitors_effect <- effect("visitors_scaled", total_global_model)
+
+visitors_effect <- effect("visitors_scaled", stepwise_global_total)
 plot(visitors_effect)
 
 visitors_scaling <- scale(scaled_global_data$visitors)
@@ -479,44 +516,22 @@ visitors_scaling <- scale(scaled_global_data$visitors)
 visitors_plot <- as.data.frame(visitors_effect) %>%
   mutate(
     visitors = visitors_scaled * attr(visitors_scaling, "scaled:scale") +
-      attr(visitors_scaling, "scaled:center")
+      attr(visitors_scaling, "scaled:center"),thousands_visitors=(visitors/1000)
   ) %>%
-  ggplot(aes(x = visitors, y = fit)) +
+  ggplot(aes(x = thousands_visitors, y = fit)) +
   geom_hline(yintercept =
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="# of visitors",y="Total Incidents [t]")
+  geom_line(color="aquamarine4")+
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "aquamarine3", alpha = 0.5) + theme_classic() + labs(x="1000s of visitors",y="Total Incidents [t]")
 
 print(visitors_plot)
 
 ggsave("./figures/visitors_plot.PNG",visitors_plot)
 
-#acorns
-
-acorn_effect <- effect("acorn_total_scaled",total_global_model)
-plot(acorn_effect)
-
-acorn_scaling <- scale(scaled_global_data$acorn_total)
-
-acorn_plot <- as.data.frame(acorn_effect) %>%
-  mutate(
-    acorn = acorn_total_scaled * attr(acorn_scaling, "scaled:scale") +
-      attr(acorn_scaling, "scaled:center")
-  ) %>%
-  ggplot(aes(x = acorn, y = fit)) +
-  geom_hline(yintercept =
-               0,
-             linetype = "dotted",
-             color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4",color = "darkred", alpha = 0.5) + theme_classic() + labs(x="N30 acorn abundance",y="Total Incidents [t]")
-
-print(acorn_plot)
-
-ggsave("./figures/acorn_effect.PNG",acorn_plot)
-
 #Prior incidents
-prior_incidents_effect <- effect("prior_total_incidents_scaled",total_global_model)
+prior_incidents_effect <- effect("prior_total_incidents_scaled",stepwise_global_total)
 plot(prior_incidents_effect)
 
 mean_prior_incidents_scaling <- scale(scaled_global_data$prior_total_incidents)
@@ -531,7 +546,8 @@ prior_incident_plot <- as.data.frame(prior_incidents_effect) %>%
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Prior Total Incidents [t-1]",y="Total Incidents [t]")
+  geom_line(color="darkblue")+
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "blue4", alpha = 0.5) + theme_classic() + labs(x="Prior Total Incidents [t-1]",y="Total Incidents [t]")
 
 print(prior_incident_plot)
 
@@ -539,13 +555,10 @@ ggsave("./figures/prior_incidents_effect.PNG",prior_incident_plot)
 
 #Remove Y axis labels from each individual plot and make the scale continuous (0-30)
 
-PRCP_plot <- PRCP_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
-PRCP_prior_plot <- PRCP_prior_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
-snow_plot <- snow_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
-bear_plot <- bear_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
-visitors_plot <- visitors_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
-acorn_plot <- acorn_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
-prior_incident_plot <- prior_incident_plot + scale_y_continuous(limits = c(0, 30)) + theme(axis.title.y = element_blank())
+snow_plot <- snow_plot + scale_y_continuous(limits = c(0, 50)) + theme(axis.title.y = element_blank())
+bear_plot <- bear_plot + scale_y_continuous(limits = c(0, 50)) + theme(axis.title.y = element_blank())
+visitors_plot <- visitors_plot + scale_y_continuous(limits = c(0, 50)) + theme(axis.title.y = element_blank())
+prior_incident_plot <- prior_incident_plot + scale_y_continuous(limits = c(0, 50)) + theme(axis.title.y = element_blank())
 
 # Create single y-axis label
 total_y_label <- ggdraw() + draw_label("Total Incidents [t]", angle = 90, vjust = 1, hjust = 0.5)
@@ -553,8 +566,8 @@ total_y_label <- ggdraw() + draw_label("Total Incidents [t]", angle = 90, vjust 
 # Combine with plot_grid
 
 figure2 <- plot_grid(
-  plot_grid(total_y_label,PRCP_plot, PRCP_prior_plot, snow_plot, acorn_plot, ncol = 5,rel_widths = c(0.15,0.8,0.8,0.8,0.8)),
-  plot_grid(total_y_label,bear_plot, visitors_plot, prior_incident_plot, ncol = 4,rel_widths = c(0.15,1,1,1)),
+  plot_grid(total_y_label, snow_plot, prior_incident_plot, ncol = 3,rel_widths = c(0.15,1,1)),
+  plot_grid(total_y_label,bear_plot, visitors_plot,  ncol = 3,rel_widths = c(0.15,1,1)),
   ncol = 1,
   rel_heights = c(1, 1)
 )
@@ -572,8 +585,7 @@ ggsave("./figures/time_series_RBDB_plot.PNG",time_series_RBDB)
 model_plot_RBDB <- stepwise_global_RBDB %>% 
   dwplot(show_intercept = TRUE,) %>% 
   relabel_predictors("(Intercept)" = "Intercept",
-                     PRCP_USW00053150_scaled ="Monthly precipitation (mm)",
-                     mean_snow_depth_scaled ="Mean snow depth (cm)",
+                     mean_snow_depth_scaled ="Mean snow depth",
                      visitors_scaled ="# of visitors",
                      prior_RBDB_incidents_scaled ="Autoregressive term"
   )
@@ -697,11 +709,8 @@ ggsave("./figures/time_series_total_plot.PNG",time_series_total)
 model_plot_food <- stepwise_global_food %>% 
   dwplot(show_intercept = TRUE,) %>% 
   relabel_predictors("(Intercept)" = "Intercept",
-                     precip_prior_scaled ="Accumulated precipitation (4-12 months in advance)",
-                     mean_snow_depth_scaled ="Mean snow depth (cm)",
                      active_bears_scaled ="# of active problem bears",
                      visitors_scaled ="# of visitors",
-                     acorn_total_scaled ="N30 Acorn abundance",
                      prior_non_aggressive_incidents_scaled ="Autoregressive term"
   )
 
@@ -874,8 +883,7 @@ model_plot_angry <- stepwise_global_angry %>%
                      PRCP_USW00053150_scaled ="Monthly precipitation (mm)",
                      precip_prior_scaled ="Accumulated precipitation (4-12 months in advance)",
                      mean_snow_depth_scaled ="Mean snow depth (cm)",
-                     acorn_total_scaled ="N30 Acorn abundance",
-                     prior_total_incidents_scaled ="Autoregressive term"
+                     prior_aggressive_incidents_scaled ="Autoregressive term"
   )
 
 # Modify dataset to classify estimates as positive or negative
@@ -957,7 +965,7 @@ snow_plot_angry <- as.data.frame(mean_snow_effect_angry) %>%
                0,
              linetype = "dotted",
              color = "black") +
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Mean snow septh (cm)",y="Aggressive incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen",color = "darkgreen", alpha = 0.5) + theme_classic() + labs(x="Mean snow septh",y="Aggressive incidents [t]")
 
 print(snow_plot_angry)
 
@@ -1067,49 +1075,65 @@ ggsave("./figures/models_figure.PNG",figure3)
 # leave-one-out and 10-fold cross-validation prediction error for 
 # the mammals data set.
 
+null_total <- glm.nb(total_incidents ~ 1, data=scaled_global_data)
 
-cv.err.10.totalstepglobal <- cv.glm(scaled_global_data,stepwise_global_total,K=10)$delta
-cv.err.10.totalglobal <- cv.glm(scaled_global_data, total_global_model, K = 10)$delta #93
+cv.err.10.totalnull <- cv.glm(scaled_global_data,null_total,K=10)$delta #171
 
-cv.err.10.totalm1 <- cv.glm(scaled_global_data, m1_total, K = 10)$delta  #120
+cv.err.10.totalstepglobal <- cv.glm(scaled_global_data,stepwise_global_total,K=10)$delta #97.1
+cv.err.10.totalglobal <- cv.glm(scaled_global_data, total_global_model, K = 10)$delta #93.4
 
-cv.err.10.totalm2 <- cv.glm(scaled_global_data, m2_total, K = 10)$delta  #118
+cv.err.totalstepm1 <- cv.glm(scaled_global_data, stepwise_m1,K=10)$delta  #271
+cv.err.10.totalm1 <- cv.glm(scaled_global_data, m1_total, K = 10)$delta  #151
 
-cv.err.10.totalm3 <- cv.glm(scaled_global_data, m3_total, K = 10)$delta  #157
+cv.err.10.totalm2 <- cv.glm(scaled_global_data, m2_total, K = 10)$delta  #114
 
-cv.err.10.RBDBstepglobal <- cv.glm(scaled_global_data,stepwise_global_RBDB)$delta   #5.11
+cv.err.10.totalm3 <- cv.glm(scaled_global_data, m3_total, K = 10)$delta  #294
 
-cv.err.10.RBDBglobal <- cv.glm(scaled_global_data,RBDB_global_model,K=10)$delta  #  5.49
+null_RBDB <- glm.nb(RBDB_incidents ~ 1, data=scaled_global_data)
 
-cv.err.10.RBDBm1 <- cv.glm(scaled_global_data, m1_RBDB, K = 10)$delta   #5.72
+cv.err.10.RBDBnull <- cv.glm(scaled_global_data,null_RBDB,K=10)$delta #7.53
 
-cv.err.10.RBDBstepm1 <- cv.glm(scaled_global_data,stepwise_m1_RBDB, K = 10)$delta #5.71
+cv.err.10.RBDBstepglobal <- cv.glm(scaled_global_data,stepwise_global_RBDB)$delta   #5.26
 
-cv.err.10.RBDBm2 <- cv.glm(scaled_global_data, m2_RBDB, K = 10)$delta   #5.17
+cv.err.10.RBDBglobal <- cv.glm(scaled_global_data,RBDB_global_model,K=10)$delta  #  5.56
 
-cv.err.10.RBDBm3 <- cv.glm(scaled_global_data, m3_RBDB, K = 10)$delta   #7.28
+cv.err.10.RBDBm1 <- cv.glm(scaled_global_data, m1_RBDB, K = 10)$delta   #5.57
 
+cv.err.10.RBDBstepm1 <- cv.glm(scaled_global_data,stepwise_m1_RBDB, K = 10)$delta #5.62
 
-cv.err.10.foodstepglobal <- cv.glm(scaled_global_data,stepwise_global_food)$delta  #83.7
+cv.err.10.RBDBm2 <- cv.glm(scaled_global_data, m2_RBDB, K = 10)$delta   #5.56
 
-cv.err.10.foodglobal <- cv.glm(scaled_global_data,food_global_model,K=10)$delta #91
+cv.err.10.RBDBm3 <- cv.glm(scaled_global_data, m3_RBDB, K = 10)$delta   #7.42
 
-cv.err.10.foodm1 <- cv.glm(scaled_global_data, m1_food, K = 10)$delta  #121
+null_food <- glm.nb(non_aggressive_incidents ~ 1, data=scaled_global_data)
 
-cv.err.10.foodstepm1 <- cv.glm(scaled_global_data,stepwise_m1_food, K = 10)$delta   #134
+cv.err.10.foodnull <- cv.glm(scaled_global_data,null_food)$delta   #132
 
-cv.err.10.foodm2 <- cv.glm(scaled_global_data, m2_food, K = 10)$delta   #250
+cv.err.10.foodstepglobal <- cv.glm(scaled_global_data,stepwise_global_food)$delta  #84.2
 
-cv.err.10.foodm3 <- cv.glm(scaled_global_data, m3_food, K = 10)$delta  #182
+cv.err.10.foodglobal <- cv.glm(scaled_global_data,food_global_model,K=10)$delta #83
 
+cv.err.10.foodm1 <- cv.glm(scaled_global_data, m1_food, K = 10)$delta  #157
+
+cv.err.10.foodstepm1 <- cv.glm(scaled_global_data,stepwise_m1_food, K = 10)$delta   #288
+
+cv.err.10.foodm2 <- cv.glm(scaled_global_data, m2_food, K = 10)$delta   #111
+
+cv.err.10.foodm3 <- cv.glm(scaled_global_data, m3_food, K = 10)$delta  #453
+
+null_angry <- glm.nb(aggressive_incidents ~ 1, data=scaled_global_data)
+
+cv.err.10.angrynull <- cv.glm(scaled_global_data,null_angry)$delta  #1.28
+
+cv.err.10.angrystepglobal <- cv.glm(scaled_global_data,stepwise_global_angry,K=10)$delta #1.11
 
 cv.err.10.angryglobal <- cv.glm(scaled_global_data,angry_global_model,K=10)$delta  #1.26
 
-cv.err.10.angrym1 <- cv.glm(scaled_global_data, m1_angry, K = 10)$delta    #1.15
+cv.err.10.angrym1 <- cv.glm(scaled_global_data, m1_angry, K = 10)$delta    #1.08
 
-cv.err.10.angrym2 <- cv.glm(scaled_global_data, m2_angry, K = 10)$delta   # 1.27
+cv.err.10.angrym2 <- cv.glm(scaled_global_data, m2_angry, K = 10)$delta   # 1.3
 
-cv.err.10.angrym3 <- cv.glm(scaled_global_data, m3_angry, K = 10)$delta  #1.32
+cv.err.10.angrym3 <- cv.glm(scaled_global_data, m3_angry, K = 10)$delta  #1.34
 
 
 # ===VIF scores
