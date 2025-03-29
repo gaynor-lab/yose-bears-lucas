@@ -424,7 +424,10 @@ aictab(cand.set = angry_models, modnames = angry_model.names)
 
 # ===Plot Total Incidents over time
 
-time_series_total <- ggplot(data=scaled_global_data,aes(x=Month,y=total_incidents))+geom_point(color="darkolivegreen4")+geom_path(color="darkolivegreen") + theme_classic() + labs(x="Month",y="Total Incidents [t]")
+time_series_total <- scaled_global_data %>% 
+  ggplot(aes(x=Month,y=total_incidents))+geom_point(color="darkolivegreen4")+geom_path(color="darkolivegreen") + theme_classic() + labs(x="Month",y="Total Incidents [t]") + theme(axis.text.x = element_text(angle = 60, hjust=1)) + scale_x_date(date_breaks = "3 months", date_labels = "%Y-%m")
+
+print(time_series_total)
 
 ggsave("./figures/time_series_total_plot.PNG",time_series_total)
 
