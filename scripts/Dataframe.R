@@ -50,7 +50,7 @@ sum(is.na(reshaped_climate_data$PRCP_USC00048380))  #29 NAs
 sum(is.na(reshaped_climate_data$PRCP_USW00053150))  #7 NAs, so use this station (Yosemite Village). Does not have snowfall data but we already have snowpack data so not important
 
 reshaped_climate_data <- reshaped_climate_data %>% 
-  select(c(DATE,PRCP_USW00053150,T_RANGE_USW00053150,TAVG_USW00053150))
+  select(c(DATE,PRCP_USW00053150,T_RANGE_USW00053150,TAVG_USW00053150))  #Can't do snow because they don't record it at this station
 
 
 #Replace property type IDs with their corresponding strings
@@ -100,9 +100,19 @@ monthly_incidents <- ID_incident_data %>%
   summarise(number_incidents=n()) %>% 
   pivot_wider(names_from = Aggressive,values_from = number_incidents,names_prefix = "Aggressive_") %>% 
   replace_na(list(Aggressive_No=0,Aggressive_Yes=0)) %>% 
-  rename(non_aggressive_incidents=Aggressive_No,aggressive_incidents=Aggressive_Yes)
+  rename(non_aggressive_incidents=Aggressive_No,aggressive_incidents=Aggressive_Yes) %>% 
+  mutate(Month=ym(Month))
 
 table(monthly_incidents$Month)   #check for outliers. I don't see any.
+
+full_months <- data.frame(Month = seq(from = ymd("2010-03-01"), to = ymd("2023-11-01"), by = "month"))
+
+monthly_incidents <- monthly_incidents %>% 
+  merge(full_months, by = "Month", all = TRUE) %>% 
+  mutate(non_aggressive_incidents = replace_na(non_aggressive_incidents, 0),
+         aggressive_incidents = replace_na(aggressive_incidents, 0),
+         Month=as.factor(format(Month,"%Y-%m")))
+  
 
 #Add Red Bear Dead Bear Data
 
