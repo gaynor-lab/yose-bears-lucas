@@ -439,7 +439,7 @@ model_plot <- stepwise_global_total %>%
                      active_bears_scaled ="# of active problem bears",
                      visitors_scaled ="# of visitors",
                      acorn_total_scaled="Acorn abundance",
-                     prior_total_incidents_scaled ="Autoregressive term"
+                     prior_total_incidents_scaled ="Incidents (t-1)"
   )
 
 # Modify dataset to classify estimates as positive or negative
@@ -447,7 +447,7 @@ model_plot$data <- model_plot$data %>%
   mutate(color_group = ifelse(estimate < 0, "Negative", "Positive"))
 
 # Update plot with color mapping for both points and error bars
-model_plot <- ggplot(data = model_plot$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor")
+model_plot <- ggplot(data = model_plot$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor",title = "a) Total Incidents")
 
 
 # Print updated plot
@@ -609,7 +609,7 @@ model_plot_RBDB <- stepwise_global_RBDB %>%
                      PRCP_USW00053150_scaled="Monthly precipitation",
                      visitors_scaled ="# of visitors",
                      acorn_total_scaled="Acorn abundance",
-                     prior_RBDB_incidents_scaled ="Autoregressive term"
+                     prior_RBDB_incidents_scaled ="Incidents (t-1)"
   )
 
 # Modify dataset to classify estimates as positive or negative
@@ -617,7 +617,7 @@ model_plot_RBDB$data <- model_plot_RBDB$data %>%
   mutate(color_group = ifelse(estimate < 0, "Negative", "Positive"))
 
 # Update plot with color mapping for both points and error bars
-model_plot_RBDB <- ggplot(data = model_plot_RBDB$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor")
+model_plot_RBDB <- ggplot(data = model_plot_RBDB$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor",title = "b) Vehicular Incidents")
 
 # Print updated plot
 print(model_plot_RBDB)
@@ -735,7 +735,7 @@ model_plot_food <- stepwise_global_food %>%
                      active_bears_scaled ="# of active problem bears",
                      visitors_scaled ="# of visitors",
                      acorn_total_scaled="Acorn abundance",
-                     prior_non_aggressive_incidents_scaled ="Autoregressive term"
+                     prior_non_aggressive_incidents_scaled ="Incidents (t-1)"
   )
 
 # Modify dataset to classify estimates as positive or negative
@@ -743,7 +743,7 @@ model_plot_food$data <- model_plot_food$data %>%
   mutate(color_group = ifelse(estimate < 0, "Negative", "Positive"))
 
 # Update plot with color mapping for both points and error bars
-model_plot_food <- ggplot(data = model_plot_food$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor")
+model_plot_food <- ggplot(data = model_plot_food$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor",title="c) Anthropogenic Foraging")
 
 # Print updated plot
 print(model_plot_food)
@@ -906,7 +906,7 @@ model_plot_angry <- stepwise_global_angry %>%
   relabel_predictors("(Intercept)" = "Intercept",
                      PRCP_USW00053150_scaled ="Monthly precipitation",
                      visitors_scaled="# of visitors",
-                     prior_aggressive_incidents_scaled ="Autoregressive term"
+                     prior_aggressive_incidents_scaled ="Incidents (t-1)"
   )
 
 # Modify dataset to classify estimates as positive or negative
@@ -914,7 +914,7 @@ model_plot_angry$data <- model_plot_angry$data %>%
   mutate(color_group = ifelse(estimate < 0, "Negative", "Positive"))
 
 # Update plot with color mapping for both points and error bars
-model_plot_angry <- ggplot(data = model_plot_angry$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor")
+model_plot_angry <- ggplot(data = model_plot_angry$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor",title="d) Aggressive Displays")
 
 # Print updated plot
 print(model_plot_angry)
@@ -1048,45 +1048,15 @@ ggsave("./figures/effects_figure.PNG",figure2)
 # ====Multipanel figure of models for each response
 
 
-model_plot <- model_plot + theme(axis.title.y = element_blank(),axis.title.x = element_blank())
-model_plot_RBDB <- model_plot_RBDB + theme(axis.title.y = element_blank(),axis.title.x = element_blank())
-model_plot_food <- model_plot_food + theme(axis.title.y = element_blank(),axis.title.x = element_blank())
-model_plot_angry <- model_plot_angry + theme(axis.title.y = element_blank(),axis.title.x = element_blank())
+model_plot <- model_plot + theme(axis.title.y = element_blank())
+model_plot_RBDB <- model_plot_RBDB + theme(axis.title.y = element_blank())
+model_plot_food <- model_plot_food + theme(axis.title.y = element_blank())
+model_plot_angry <- model_plot_angry + theme(axis.title.y = element_blank())
 
-# Create single y-axis label
-x_label <- ggdraw() + draw_label("Coefficient",  vjust = 0.5, hjust = 0.5,x=0.75) + 
-theme(plot.margin = margin(t = 5, r = 20, b = 5, l = 5))
-total_label <- ggdraw() + draw_label("a) Total Monthly Incidents")
-RBDB_label <- ggdraw() + draw_label("b) Vehicular Incidents")
-food_label <- ggdraw() + draw_label("c) Foraging Incidents")
-angry_label <- ggdraw() + draw_label("d) Aggressive Incidents")
 
 # Combine with plot_grid
 
-model_plot <- plot_grid(total_label, model_plot, nrow = 2,rel_heights = c(0.10,1))
-
-model_plot_RBDB <- plot_grid(RBDB_label, model_plot_RBDB, nrow = 2,rel_heights = c(0.10,1))
-
-model_plot_food <- plot_grid(food_label, model_plot_food, nrow = 2,rel_heights = c(0.10,1))
-
-model_plot_angry <- plot_grid(angry_label, model_plot_angry, nrow = 2,rel_heights = c(0.10,1))
-
-figure3 <- plot_grid(
-  plot_grid(
-    model_plot,
-    model_plot_RBDB,
-    x_label,
-    nrow = 3,
-    rel_heights = c(1,1,0.15)
-  ),
-  plot_grid(
-    model_plot_food,
-    model_plot_angry,
-    x_label,
-    nrow = 3,
-    rel_heights = c(1, 1,0.15)
-  ),
-  ncol=2)
+figure3 <- plot_grid(model_plot,model_plot_RBDB,model_plot_food,model_plot_angry)
 
 print(figure3)
 
