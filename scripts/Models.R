@@ -120,7 +120,7 @@ global_corr_matrix <- cor(scaled_global_data[, c("PRCP_USW00053150_scaled","T_RA
 
 total_global_model <- glm.nb(
   total_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
+    precip_prior_scaled + active_bears_scaled + visitors_scaled +
     acorn_total_scaled+ prior_total_incidents_scaled, data = scaled_global_data)
 
 
@@ -143,7 +143,7 @@ hist(residuals_total_global_step)
 
 m1_total <- glm.nb(
   total_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + prior_total_incidents_scaled,
+    precip_prior_scaled + acorn_total_scaled + prior_total_incidents_scaled,
   data = scaled_global_data
 )
 
@@ -199,7 +199,7 @@ aictab(cand.set = total_models, modnames = total_model.names)
 
 RBDB_global_model <- glm.nb(
   RBDB_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
+    precip_prior_scaled + active_bears_scaled + visitors_scaled +
     acorn_total_scaled + prior_RBDB_incidents_scaled,
   data = scaled_global_data
 )
@@ -214,7 +214,7 @@ anova(RBDB_global_model)
 
 stepwise_global_RBDB <- stepAIC(RBDB_global_model)  #Gets rid of autoregressive term. Add it back
 
-stepwise_global_RBDB <- glm.nb(RBDB_incidents ~ mean_snow_depth_scaled + visitors_scaled + prior_RBDB_incidents_scaled, data = scaled_global_data)
+# stepwise_global_RBDB <- glm.nb(RBDB_incidents ~  visitors_scaled + prior_RBDB_incidents_scaled, data = scaled_global_data)
 
 residuals_RBDB_global_step <- residuals(stepwise_global_RBDB)
 qqnorm(residuals_RBDB_global_step)
@@ -225,7 +225,7 @@ summary(stepwise_global_RBDB)   #AIC 366.99
 
 m1_RBDB <- glm.nb(
   RBDB_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled +  prior_RBDB_incidents_scaled,
+    precip_prior_scaled + acorn_total_scaled +  prior_RBDB_incidents_scaled,
   data = scaled_global_data
 )
 
@@ -239,8 +239,8 @@ anova(m1_RBDB)
 
 stepwise_m1_RBDB <- stepAIC(m1_RBDB)
 
-stepwise_m1_RBDB <- glm.nb(RBDB_incidents ~ PRCP_USW00053150_scaled + mean_snow_depth_scaled + 
-                             acorn_total_scaled + prior_RBDB_incidents_scaled,data=scaled_global_data)
+# stepwise_m1_RBDB <- glm.nb(RBDB_incidents ~ PRCP_USW00053150_scaled +
+#                              acorn_total_scaled + prior_RBDB_incidents_scaled,data=scaled_global_data)
 
 residuals_RBDB_m1_step <- residuals(stepwise_m1_RBDB)
 qqnorm(residuals_RBDB_m1_step)
@@ -269,7 +269,7 @@ aictab(cand.set = RBDB_models, modnames = RBDB_model.names)
 
 food_global_model <- glm.nb(
   non_aggressive_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
+    precip_prior_scaled + active_bears_scaled + visitors_scaled +
     acorn_total_scaled + prior_non_aggressive_incidents_scaled,
   data = scaled_global_data
 )
@@ -293,7 +293,7 @@ hist(residuals_food_global_step)
 
 m1_food <- glm.nb(
   non_aggressive_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + prior_non_aggressive_incidents_scaled,
+    precip_prior_scaled + acorn_total_scaled + prior_non_aggressive_incidents_scaled,
   data = scaled_global_data
 )
 
@@ -344,7 +344,7 @@ aictab(cand.set = food_models, modnames = food_model.names)
 
 angry_global_model <- glm.nb(
   aggressive_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + active_bears_scaled + visitors_scaled +
+    precip_prior_scaled + active_bears_scaled + visitors_scaled +
     acorn_total_scaled + prior_aggressive_incidents_scaled,
   data = scaled_global_data
 )
@@ -359,8 +359,7 @@ anova(angry_global_model)
 
 stepwise_global_angry <- stepAIC(angry_global_model)
 
-stepwise_global_angry <- glm.nb(aggressive_incidents ~ PRCP_USW00053150_scaled + 
-                                  precip_prior_scaled + mean_snow_depth_scaled + prior_aggressive_incidents_scaled, data = scaled_global_data)
+stepwise_global_angry <- glm.nb(formula = aggressive_incidents ~ PRCP_USW00053150_scaled + visitors_scaled + prior_aggressive_incidents_scaled, data = scaled_global_data)
 
 residuals_angry_global_step <- residuals(stepwise_global_angry)
 qqnorm(residuals_angry_global_step)
@@ -371,7 +370,7 @@ summary(stepwise_global_angry)   #AIC 798.62
 
 m1_angry <- glm.nb(
   aggressive_incidents ~ PRCP_USW00053150_scaled +
-    precip_prior_scaled + mean_snow_depth_scaled + acorn_total_scaled + prior_aggressive_incidents_scaled,
+    precip_prior_scaled + acorn_total_scaled + prior_aggressive_incidents_scaled,
   data = scaled_global_data
 )
 
@@ -385,8 +384,10 @@ anova(m1_angry)
 
 stepwise_m1_angry <- stepAIC(m1_angry)
 
-stepwise_m1_angry <- glm.nb(aggressive_incidents ~ PRCP_USW00053150_scaled + 
-                              precip_prior_scaled + mean_snow_depth_scaled + prior_aggressive_incidents_scaled, data = scaled_global_data)
+stepwise_m1_angry <- glm.nb(formula = aggressive_incidents ~ PRCP_USW00053150_scaled + prior_aggressive_incidents_scaled, data = scaled_global_data)
+
+# stepwise_m1_angry <- glm.nb(aggressive_incidents ~ PRCP_USW00053150_scaled + 
+#                               precip_prior_scaled + prior_aggressive_incidents_scaled, data = scaled_global_data)
 
 residuals_angry_m1 <- residuals(stepwise_m1_angry)
 qqnorm(residuals_angry_m1)
@@ -434,9 +435,10 @@ library(NatParksPalettes)
 model_plot <- stepwise_global_total %>% 
   dwplot(show_intercept = TRUE,) %>% 
   relabel_predictors("(Intercept)" = "Intercept",
-                     mean_snow_depth_scaled ="Mean snow depth (cm)",
+                     precip_prior_scaled = "Prior accumulated precipitation",
                      active_bears_scaled ="# of active problem bears",
                      visitors_scaled ="# of visitors",
+                     acorn_total_scaled="Acorn abundance",
                      prior_total_incidents_scaled ="Autoregressive term"
   )
 
@@ -448,8 +450,7 @@ model_plot$data <- model_plot$data %>%
 model_plot <- ggplot(data = model_plot$data, aes(x = estimate, y = term)) + theme_classic() + geom_vline(xintercept = 0, linetype = "dotted") + scale_color_manual(values = natparks.pals("KingsCanyon",2)) + geom_point(aes(color = color_group), size = 1) + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = color_group), height = 0.2) + theme(legend.position="none") + labs(x="Coefficient",y="Predictor")
 
 
-summary(RBDB_global_model)
-                                                                                                # Print updated plot
+# Print updated plot
 print(model_plot)
 
 ggsave("./figures/total_model_figure.PNG",model_plot)
@@ -459,29 +460,53 @@ summary(total_global_model)  #Verify. Try to make prettier if possible, but this
 #==Predict figures effects. Errors increase with environmental variables and autoregressive term, so maybe log transform it. Make a Github issue and ask Kaitlyn. Make sure y axes are all the same scale, get rid of labels, group related variables together in th multipanel figure.
 
 
-#Snow depth
+#Precip Prior
 
-mean_snow_effect <- effect("mean_snow_depth_scaled",stepwise_global_total)
-plot(mean_snow_effect)
+precip_prior_effect <- effect("precip_prior_scaled",stepwise_global_total)
+plot(precip_prior_effect)
 
-mean_depth_scaling <- scale(scaled_global_data$mean_snow_depth)
+precip_prior_scaling <- scale(scaled_global_data$precip_prior)
 
-snow_plot <- as.data.frame(mean_snow_effect) %>%
+prior_precip_plot <- as.data.frame(precip_prior_effect) %>%
   mutate(
-    mean_depth = mean_snow_depth_scaled * attr(mean_depth_scaling, "scaled:scale") +
-      attr(mean_depth_scaling, "scaled:center")
+    precip_prior = precip_prior_scaled * attr(precip_prior_scaling, "scaled:scale") +
+      attr(precip_prior_scaling, "scaled:center")
   ) %>% 
-  ggplot(aes(x = mean_depth, y = fit)) +
+  ggplot(aes(x = precip_prior, y = fit)) +
   geom_hline(yintercept =
                0,
              linetype = "dotted",
              color = "black") +
   geom_line(color="darkgreen") + 
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen", alpha = 0.5) + theme_classic() + labs(x="Mean snow depth",y="Total incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen", alpha = 0.5) + theme_classic() + labs(x="Prior accumulated precipitation",y="Total incidents [t]")
 
-print(snow_plot)
+print(prior_precip_plot)
 
-ggsave("./figures/mean_snow_effect.PNG",snow_plot)
+ggsave("./figures/prior_precip_effect.PNG",prior_precip_plot)
+
+#Acorns
+
+acorn_effect <- effect("acorn_total_scaled", stepwise_global_total)
+plot(acorn_effect)
+
+acorn_scaling <- scale(scaled_global_data$acorn_total)
+
+acorn_effect_plot <- as.data.frame(acorn_effect) %>%
+  mutate(
+    acorn = acorn_total_scaled * attr(acorn_scaling, "scaled:scale") +
+      attr(acorn_scaling, "scaled:center")
+  ) %>% 
+  ggplot(aes(x = acorn, y = fit)) +
+  geom_hline(yintercept =
+               0,
+             linetype = "dotted",
+             color = "black") +
+  geom_line(color="darkgreen") + 
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen", alpha = 0.5) + theme_classic() + labs(x="Acorn abundance",y="Total incidents [t]")
+
+print(acorn_effect_plot)
+
+ggsave("./figures/acorn_effect.PNG",acorn_effect_plot)
 
 #active bears
 active_bears_effect <- effect("active_bears_scaled",stepwise_global_total)
@@ -555,26 +580,22 @@ ggsave("./figures/prior_incidents_effect.PNG",prior_incident_plot)
 
 #Remove Y axis labels from each individual plot and make the scale continuous (0-30)
 
-snow_plot <- snow_plot + scale_y_continuous(limits = c(0, 50)) + theme(axis.title.y = element_blank())
-bear_plot <- bear_plot + scale_y_continuous(limits = c(0, 50)) + theme(axis.title.y = element_blank())
-visitors_plot <- visitors_plot + scale_y_continuous(limits = c(0, 50)) + theme(axis.title.y = element_blank())
-prior_incident_plot <- prior_incident_plot + scale_y_continuous(limits = c(0, 50)) + theme(axis.title.y = element_blank())
+prior_precip_plot <- prior_precip_plot + scale_y_continuous(limits = c(0, 70)) + theme(axis.title.y = element_blank())
+acorn_effect_plot <- acorn_effect_plot + scale_y_continuous(limits = c(0, 70)) + theme(axis.title.y = element_blank())
+bear_plot <- bear_plot + scale_y_continuous(limits = c(0, 70)) + theme(axis.title.y = element_blank())
+visitors_plot <- visitors_plot + scale_y_continuous(limits = c(0, 70)) + theme(axis.title.y = element_blank())
+prior_incident_plot <- prior_incident_plot + scale_y_continuous(limits = c(0, 70)) + theme(axis.title.y = element_blank())
 
 # Create single y-axis label
 total_y_label <- ggdraw() + draw_label("Total Incidents [t]", angle = 90, vjust = 1, hjust = 0.5)
 
 # Combine with plot_grid
 
-figure2 <- plot_grid(
-  plot_grid(total_y_label, snow_plot, prior_incident_plot, ncol = 3,rel_widths = c(0.15,1,1)),
-  plot_grid(total_y_label,bear_plot, visitors_plot,  ncol = 3,rel_widths = c(0.15,1,1)),
-  ncol = 1,
-  rel_heights = c(1, 1)
-)
+figure_2 <- plot_grid(total_y_label,plot_grid(visitors_plot,bear_plot,prior_incident_plot,acorn_effect_plot,prior_precip_plot),rel_widths = c(0.05,1))
 
-print(figure2)
+print(figure_2)
 
-ggsave("./figures/effects_figure.PNG", figure2)
+ggsave("./figures/effects_figure.PNG", figure_2)
 
 # ===RBDB Plots
 
@@ -585,8 +606,9 @@ ggsave("./figures/time_series_RBDB_plot.PNG",time_series_RBDB)
 model_plot_RBDB <- stepwise_global_RBDB %>% 
   dwplot(show_intercept = TRUE,) %>% 
   relabel_predictors("(Intercept)" = "Intercept",
-                     mean_snow_depth_scaled ="Mean snow depth",
+                     PRCP_USW00053150_scaled="Monthly precipitation",
                      visitors_scaled ="# of visitors",
+                     acorn_total_scaled="Acorn abundance",
                      prior_RBDB_incidents_scaled ="Autoregressive term"
   )
 
@@ -709,8 +731,10 @@ ggsave("./figures/time_series_total_plot.PNG",time_series_total)
 model_plot_food <- stepwise_global_food %>% 
   dwplot(show_intercept = TRUE,) %>% 
   relabel_predictors("(Intercept)" = "Intercept",
+                     precip_prior_scaled="Prior accumulated precipitation",
                      active_bears_scaled ="# of active problem bears",
                      visitors_scaled ="# of visitors",
+                     acorn_total_scaled="Acorn abundance",
                      prior_non_aggressive_incidents_scaled ="Autoregressive term"
   )
 
@@ -880,9 +904,8 @@ ggsave("./figures/time_series_total_plot_angry.PNG",time_series_angry)
 model_plot_angry <- stepwise_global_angry %>% 
   dwplot(show_intercept = TRUE,) %>% 
   relabel_predictors("(Intercept)" = "Intercept",
-                     PRCP_USW00053150_scaled ="Monthly precipitation (mm)",
-                     precip_prior_scaled ="Accumulated precipitation (4-12 months in advance)",
-                     mean_snow_depth_scaled ="Mean snow depth (cm)",
+                     PRCP_USW00053150_scaled ="Monthly precipitation",
+                     visitors_scaled="# of visitors",
                      prior_aggressive_incidents_scaled ="Autoregressive term"
   )
 
