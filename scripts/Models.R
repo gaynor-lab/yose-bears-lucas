@@ -481,7 +481,7 @@ prior_precip_plot <- as.data.frame(precip_prior_effect) %>%
              linetype = "dotted",
              color = "black") +
   geom_line(color="darkgreen") + 
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen", alpha = 0.5) + theme_classic() + labs(x="Prior accumulated precipitation",y="Total incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen", alpha = 0.5) + theme_classic() + labs(x="Prior accumulated precipitation",y="Total incidents")
 
 print(prior_precip_plot)
 
@@ -505,7 +505,7 @@ acorn_effect_plot <- as.data.frame(acorn_effect) %>%
              linetype = "dotted",
              color = "black") +
   geom_line(color="darkgreen") + 
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen", alpha = 0.5) + theme_classic() + labs(x="Acorn abundance",y="Total incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "darkolivegreen", alpha = 0.5) + theme_classic() + labs(x="Acorn abundance",y="Total incidents")
 
 print(acorn_effect_plot)
 
@@ -528,7 +528,7 @@ bear_plot <- as.data.frame(active_bears_effect) %>%
              linetype = "dotted",
              color = "black") +
   geom_line(color="darkred")+
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4", alpha = 0.5) + theme_classic() + labs(x="# of active bears",y="Total Incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "brown4", alpha = 0.5) + theme_classic() + labs(x="# of problem bears",y="Total Incidents")
 
 print(bear_plot)
 
@@ -552,7 +552,7 @@ visitors_plot <- as.data.frame(visitors_effect) %>%
              linetype = "dotted",
              color = "black") +
   geom_line(color="aquamarine4")+
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "aquamarine3", alpha = 0.5) + theme_classic() + labs(x="1000s of visitors",y="Total Incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "aquamarine3", alpha = 0.5) + theme_classic() + labs(x="1000s of visitors",y="Total Incidents")
 
 print(visitors_plot)
 
@@ -575,7 +575,7 @@ prior_incident_plot <- as.data.frame(prior_incidents_effect) %>%
              linetype = "dotted",
              color = "black") +
   geom_line(color="darkblue")+
-  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "blue4", alpha = 0.5) + theme_classic() + labs(x="Prior Total Incidents [t-1]",y="Total Incidents [t]")
+  geom_ribbon(aes(ymin = lower,ymax = upper),fill = "blue4", alpha = 0.5) + theme_classic() + labs(x="Prior Total Incidents [t-1]",y="Total Incidents")
 
 print(prior_incident_plot)
 
@@ -590,7 +590,7 @@ visitors_plot <- visitors_plot + scale_y_continuous(limits = c(0, 70)) + theme(a
 prior_incident_plot <- prior_incident_plot + scale_y_continuous(limits = c(0, 70)) + theme(axis.title.y = element_blank())
 
 # Create single y-axis label
-total_y_label <- ggdraw() + draw_label("Total Incidents [t]", angle = 90, vjust = 1, hjust = 0.5)
+total_y_label <- ggdraw() + draw_label("Total Incidents", angle = 90, vjust = 1, hjust = 0.5)
 
 # Combine with plot_grid
 
@@ -1073,63 +1073,63 @@ ggsave("./figures/models_figure.PNG",figure3)
 
 null_total <- glm.nb(total_incidents ~ 1, data=scaled_global_data)
 
-cv.err.10.totalnull <- cv.glm(scaled_global_data,null_total,K=10)$delta #171
+cv.err.10.totalnull <- cv.glm(scaled_global_data,null_total,K=10)$delta #147
 
-cv.err.10.totalstepglobal <- cv.glm(scaled_global_data,stepwise_global_total,K=10)$delta #97.1
-cv.err.10.totalglobal <- cv.glm(scaled_global_data, total_global_model, K = 10)$delta #93.4
+cv.err.10.totalstepglobal <- cv.glm(scaled_global_data,stepwise_global_total,K=10)$delta #83.2
+cv.err.10.totalglobal <- cv.glm(scaled_global_data, total_global_model, K = 10)$delta #86.9
 
-cv.err.totalstepm1 <- cv.glm(scaled_global_data, stepwise_m1,K=10)$delta  #271
-cv.err.10.totalm1 <- cv.glm(scaled_global_data, m1_total, K = 10)$delta  #151
+cv.err.totalstepm1 <- cv.glm(scaled_global_data, stepwise_m1,K=10)$delta  #4971
+cv.err.10.totalm1 <- cv.glm(scaled_global_data, m1_total, K = 10)$delta  #4588
 
-cv.err.10.totalm2 <- cv.glm(scaled_global_data, m2_total, K = 10)$delta  #114
+cv.err.10.totalm2 <- cv.glm(scaled_global_data, m2_total, K = 10)$delta  #129
 
-cv.err.10.totalm3 <- cv.glm(scaled_global_data, m3_total, K = 10)$delta  #294
+cv.err.10.totalm3 <- cv.glm(scaled_global_data, m3_total, K = 10)$delta  #19367
 
 null_RBDB <- glm.nb(RBDB_incidents ~ 1, data=scaled_global_data)
 
-cv.err.10.RBDBnull <- cv.glm(scaled_global_data,null_RBDB,K=10)$delta #7.53
+cv.err.10.RBDBnull <- cv.glm(scaled_global_data,null_RBDB,K=10)$delta #6.73
 
-cv.err.10.RBDBstepglobal <- cv.glm(scaled_global_data,stepwise_global_RBDB)$delta   #5.26
+cv.err.10.RBDBstepglobal <- cv.glm(scaled_global_data,stepwise_global_RBDB)$delta   #5.19
 
-cv.err.10.RBDBglobal <- cv.glm(scaled_global_data,RBDB_global_model,K=10)$delta  #  5.56
+cv.err.10.RBDBglobal <- cv.glm(scaled_global_data,RBDB_global_model,K=10)$delta  #5.65
 
-cv.err.10.RBDBm1 <- cv.glm(scaled_global_data, m1_RBDB, K = 10)$delta   #5.57
+cv.err.10.RBDBm1 <- cv.glm(scaled_global_data, m1_RBDB, K = 10)$delta   #19.1
 
-cv.err.10.RBDBstepm1 <- cv.glm(scaled_global_data,stepwise_m1_RBDB, K = 10)$delta #5.62
+cv.err.10.RBDBstepm1 <- cv.glm(scaled_global_data,stepwise_m1_RBDB, K = 10)$delta #18.8
 
-cv.err.10.RBDBm2 <- cv.glm(scaled_global_data, m2_RBDB, K = 10)$delta   #5.56
+cv.err.10.RBDBm2 <- cv.glm(scaled_global_data, m2_RBDB, K = 10)$delta   #6.03
 
-cv.err.10.RBDBm3 <- cv.glm(scaled_global_data, m3_RBDB, K = 10)$delta   #7.42
+cv.err.10.RBDBm3 <- cv.glm(scaled_global_data, m3_RBDB, K = 10)$delta   #45.5
 
 null_food <- glm.nb(non_aggressive_incidents ~ 1, data=scaled_global_data)
 
-cv.err.10.foodnull <- cv.glm(scaled_global_data,null_food)$delta   #132
+cv.err.10.foodnull <- cv.glm(scaled_global_data,null_food)$delta   #106
 
-cv.err.10.foodstepglobal <- cv.glm(scaled_global_data,stepwise_global_food)$delta  #84.2
+cv.err.10.foodstepglobal <- cv.glm(scaled_global_data,stepwise_global_food)$delta  #56.9
 
-cv.err.10.foodglobal <- cv.glm(scaled_global_data,food_global_model,K=10)$delta #83
+cv.err.10.foodglobal <- cv.glm(scaled_global_data,food_global_model,K=10)$delta #58.7
 
-cv.err.10.foodm1 <- cv.glm(scaled_global_data, m1_food, K = 10)$delta  #157
+cv.err.10.foodm1 <- cv.glm(scaled_global_data, m1_food, K = 10)$delta  #20149
 
-cv.err.10.foodstepm1 <- cv.glm(scaled_global_data,stepwise_m1_food, K = 10)$delta   #288
+cv.err.10.foodstepm1 <- cv.glm(scaled_global_data,stepwise_m1_food, K = 10)$delta   #14320
 
-cv.err.10.foodm2 <- cv.glm(scaled_global_data, m2_food, K = 10)$delta   #111
+cv.err.10.foodm2 <- cv.glm(scaled_global_data, m2_food, K = 10)$delta   #74.2
 
-cv.err.10.foodm3 <- cv.glm(scaled_global_data, m3_food, K = 10)$delta  #453
+cv.err.10.foodm3 <- cv.glm(scaled_global_data, m3_food, K = 10)$delta  #29808
 
 null_angry <- glm.nb(aggressive_incidents ~ 1, data=scaled_global_data)
 
-cv.err.10.angrynull <- cv.glm(scaled_global_data,null_angry)$delta  #1.28
+cv.err.10.angrynull <- cv.glm(scaled_global_data,null_angry)$delta  #0.885
 
-cv.err.10.angrystepglobal <- cv.glm(scaled_global_data,stepwise_global_angry,K=10)$delta #1.11
+cv.err.10.angrystepglobal <- cv.glm(scaled_global_data,stepwise_global_angry,K=10)$delta #0.887
 
-cv.err.10.angryglobal <- cv.glm(scaled_global_data,angry_global_model,K=10)$delta  #1.26
+cv.err.10.angryglobal <- cv.glm(scaled_global_data,angry_global_model,K=10)$delta  #0.911
 
-cv.err.10.angrym1 <- cv.glm(scaled_global_data, m1_angry, K = 10)$delta    #1.08
+cv.err.10.angrym1 <- cv.glm(scaled_global_data, m1_angry, K = 10)$delta    #0.888
 
-cv.err.10.angrym2 <- cv.glm(scaled_global_data, m2_angry, K = 10)$delta   # 1.3
+cv.err.10.angrym2 <- cv.glm(scaled_global_data, m2_angry, K = 10)$delta   # 0.888
 
-cv.err.10.angrym3 <- cv.glm(scaled_global_data, m3_angry, K = 10)$delta  #1.34
+cv.err.10.angrym3 <- cv.glm(scaled_global_data, m3_angry, K = 10)$delta  #0.933
 
 
 # ===VIF scores
