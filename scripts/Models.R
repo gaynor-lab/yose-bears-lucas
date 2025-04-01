@@ -118,6 +118,8 @@ global_corr_matrix <- cor(scaled_global_data[, c("PRCP_USW00053150_scaled","T_RA
 
 # ===Total Incidents
 
+null_total <- glm.nb(total_incidents ~ 1, data=scaled_global_data)
+
 total_global_model <- glm.nb(
   total_incidents ~ PRCP_USW00053150_scaled +
     precip_prior_scaled + active_bears_scaled + visitors_scaled +
@@ -184,9 +186,9 @@ summary(m3_total)   #1102.1
 
 # AIC Table. Package and directions from https://www.scribbr.com/statistics/akaike-information-criterion/#:~:text=To%20use%20aictab()%2C%20first%20load%20the%20library%20AICcmodavg.&text=Then%20put%20the%20models%20into,names').&text=Finally%2C%20run%20aictab()%20to%20do%20the%20comparison.
 
-total_models <- list(total_global_model, stepwise_global_total, m1_total, stepwise_m1, m2_total, m3_total)
+total_models <- list(null_total, total_global_model, stepwise_global_total, m1_total, stepwise_m1, m2_total, m3_total)
 
-total_model.names <- c('Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
+total_model.names <- c('Null Model','Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
 
 aictab(cand.set = total_models, modnames = total_model.names)
 
@@ -196,6 +198,8 @@ aictab(cand.set = total_models, modnames = total_model.names)
 
 
 # ===RBDB Incidents
+
+null_RBDB <- glm.nb(RBDB_incidents ~ 1, data=scaled_global_data)
 
 RBDB_global_model <- glm.nb(
   RBDB_incidents ~ PRCP_USW00053150_scaled +
@@ -259,13 +263,15 @@ summary(m3_RBDB)   #463.36
 
 #AIC table
 
-RBDB_models <- list(RBDB_global_model, stepwise_global_RBDB, m1_RBDB, stepwise_m1_RBDB, m2_RBDB, m3_RBDB)
+RBDB_models <- list(null_RBDB, RBDB_global_model, stepwise_global_RBDB, m1_RBDB, stepwise_m1_RBDB, m2_RBDB, m3_RBDB)
 
-RBDB_model.names <- c('Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
+RBDB_model.names <- c('Null Model','Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
 
 aictab(cand.set = RBDB_models, modnames = RBDB_model.names)
 
 # ===Non_aggressive food incidents
+
+null_food <- glm.nb(non_aggressive_incidents ~ 1, data=scaled_global_data)
 
 food_global_model <- glm.nb(
   non_aggressive_incidents ~ PRCP_USW00053150_scaled +
@@ -334,13 +340,15 @@ summary(m3_food)   #996.82
 
 #AIC Table
 
-food_models <- list(food_global_model, stepwise_global_food, m1_food, stepwise_m1_food, m2_food, m3_food)
+food_models <- list(null_food,food_global_model, stepwise_global_food, m1_food, stepwise_m1_food, m2_food, m3_food)
 
-food_model.names <- c('Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
+food_model.names <- c('Null Model','Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
 
 aictab(cand.set = food_models, modnames = food_model.names)
 
 # ===Aggressive food incidents
+
+null_angry <- glm.nb(aggressive_incidents ~ 1, data=scaled_global_data)
 
 angry_global_model <- glm.nb(
   aggressive_incidents ~ PRCP_USW00053150_scaled +
@@ -416,9 +424,9 @@ summary(m3_food)   #996.82
 
 #AIC Table
 
-angry_models <- list(angry_global_model, stepwise_global_angry, m1_angry, stepwise_m1_angry, m2_angry, m3_angry)
+angry_models <- list(null_angry,angry_global_model, stepwise_global_angry, m1_angry, stepwise_m1_angry, m2_angry, m3_angry)
 
-angry_model.names <- c('Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
+angry_model.names <- c('Null Model','Global Model', 'Stepwise Global Model', 'Environmental', 'Stepwise Environmental','Visitors', 'Active Problem Bears')
 
 aictab(cand.set = angry_models, modnames = angry_model.names)
 
@@ -1071,8 +1079,6 @@ ggsave("./figures/models_figure.PNG",figure3)
 # leave-one-out and 10-fold cross-validation prediction error for 
 # the mammals data set.
 
-null_total <- glm.nb(total_incidents ~ 1, data=scaled_global_data)
-
 cv.err.10.totalnull <- cv.glm(scaled_global_data,null_total,K=10)$delta #147
 
 cv.err.10.totalstepglobal <- cv.glm(scaled_global_data,stepwise_global_total,K=10)$delta #83.2
@@ -1085,7 +1091,6 @@ cv.err.10.totalm2 <- cv.glm(scaled_global_data, m2_total, K = 10)$delta  #129
 
 cv.err.10.totalm3 <- cv.glm(scaled_global_data, m3_total, K = 10)$delta  #19367
 
-null_RBDB <- glm.nb(RBDB_incidents ~ 1, data=scaled_global_data)
 
 cv.err.10.RBDBnull <- cv.glm(scaled_global_data,null_RBDB,K=10)$delta #6.73
 
@@ -1101,7 +1106,7 @@ cv.err.10.RBDBm2 <- cv.glm(scaled_global_data, m2_RBDB, K = 10)$delta   #6.03
 
 cv.err.10.RBDBm3 <- cv.glm(scaled_global_data, m3_RBDB, K = 10)$delta   #45.5
 
-null_food <- glm.nb(non_aggressive_incidents ~ 1, data=scaled_global_data)
+
 
 cv.err.10.foodnull <- cv.glm(scaled_global_data,null_food)$delta   #106
 
@@ -1117,7 +1122,7 @@ cv.err.10.foodm2 <- cv.glm(scaled_global_data, m2_food, K = 10)$delta   #74.2
 
 cv.err.10.foodm3 <- cv.glm(scaled_global_data, m3_food, K = 10)$delta  #29808
 
-null_angry <- glm.nb(aggressive_incidents ~ 1, data=scaled_global_data)
+
 
 cv.err.10.angrynull <- cv.glm(scaled_global_data,null_angry)$delta  #0.885
 
