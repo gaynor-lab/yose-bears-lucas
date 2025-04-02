@@ -930,7 +930,7 @@ model_plot_angry <- ggplot(data = model_plot_angry$data, aes(x = estimate, y = t
 # Print updated plot
 print(model_plot_angry)
 
-ggsave("./figures/total_model_figure_angry.PNG",model_plot_angry)
+ggsave("./figures/model_figure_angry.PNG",model_plot_angry)
 
 
 #==Predict figures effects. Errors increase with environmental variables and autoregressive term, so maybe log transform it. Make a Github issue and ask Kaitlyn.
@@ -1129,6 +1129,8 @@ cv.err.10.angrynull <- cv.glm(scaled_global_data,null_angry)$delta  #0.885
 cv.err.10.angrystepglobal <- cv.glm(scaled_global_data,stepwise_global_angry,K=10)$delta #0.887
 
 cv.err.10.angryglobal <- cv.glm(scaled_global_data,angry_global_model,K=10)$delta  #0.911
+
+cv.err.10.angrystepm1 <- cv.glm(scaled_global_data,stepwise_m1_angry, K =10)$delta  #0.870
 
 cv.err.10.angrym1 <- cv.glm(scaled_global_data, m1_angry, K = 10)$delta    #0.888
 
