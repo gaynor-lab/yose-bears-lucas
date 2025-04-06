@@ -116,6 +116,19 @@ global_corr_matrix <- cor(scaled_global_data[, c("PRCP_USW00053150_scaled","T_RA
 
 #==Model for total incidents. Cut out LN30 because it is a function of N30 on both species. Cut out T_Max and T_min because T avg is a function of both of them. Can use T_Range instead. Include depth and wc for all snow stations, but cut out density because it is a function of both of those measures. While I expect an interaction between temperature and precipitation, the step AIC function does not require me to include an interaction term.
 
+#==Summary of incident types
+
+incident_types <- c("Bears hit by vehicles","Agressive displays","Property destruction")
+num_incidents <- c(sum(scaled_global_data$RBDB_incidents),sum(scaled_global_data$aggressive_incidents),sum(scaled_global_data$non_aggressive_incidents))
+
+incidents_plot_data <- data.frame(incident_types,num_incidents)
+
+incidents_plot <- ggplot(data=incidents_plot_data,aes(x=incident_types,y=num_incidents)) + geom_col(fill="darkolivegreen") + theme_classic() + labs(x="Incident types",y= "Number of incidents") + theme(axis.title.x = element_blank())
+
+print(incidents_plot)
+
+ggsave("./figures/incidents_plot.PNG")
+
 # ===Total Incidents
 
 null_total <- glm.nb(total_incidents ~ 1, data=scaled_global_data)
@@ -602,7 +615,7 @@ total_y_label <- ggdraw() + draw_label("Total Incidents", angle = 90, vjust = 1,
 
 # Combine with plot_grid
 
-figure_2 <- plot_grid(total_y_label,plot_grid(visitors_plot,bear_plot,prior_incident_plot,acorn_effect_plot,prior_precip_plot),rel_widths = c(0.05,1))
+figure_2 <- plot_grid(total_y_label,plot_grid(visitors_plot,bear_plot,acorn_effect_plot,prior_precip_plot),rel_widths = c(0.05,1))
 
 print(figure_2)
 
