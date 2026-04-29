@@ -1,5 +1,6 @@
 # Goals of this revision: 1) add seasonality, and 2) account for temporal autocorrelation in residuals
 
+source("scripts-lucas/Models.R")
 
 # With cyclic spline for month
 
@@ -12,13 +13,13 @@ library(mgcv)
 
 ## month_of_year: captures seasonal position (Jan–Dec) for cyclic spline
 scaled_global_data$month_of_year <- as.numeric(
-  format(scaled_global_data$date, "%m")
+  format(as.Date(scaled_global_data$Month), "%m")
 )
 
 ## time: sequential month index for AR(1)
 ## Since your ONLY time unit is month, this is just 1, 2, 3, ..., T
 ## IMPORTANT: data must be sorted in time order
-scaled_global_data <- scaled_global_data[order(scaled_global_data$date), ]
+scaled_global_data <- scaled_global_data[order(scaled_global_data$Month), ]
 scaled_global_data$time <- seq_len(nrow(scaled_global_data))
 
 ## ------------------------------------------------------------------
@@ -90,7 +91,7 @@ library(glmmTMB)
 
 ## month_of_year: 1–12 seasonal position
 scaled_global_data$month_of_year <- as.numeric(
-  format(scaled_global_data$date, "%m")
+  format(scaled_global_data$Month, "%m")
 )
 
 ## time: sequential monthly index (same logic as GAMM)
