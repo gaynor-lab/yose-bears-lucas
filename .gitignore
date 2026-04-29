@@ -2,5 +2,13 @@
 .Rhistory
 .RData
 .Ruserdata
+*.Rproj
 
 *.csv
+*.xlsx
+*.xls
+*.pdf
+*.docx
+*.doc
+*.DS_Store
+
