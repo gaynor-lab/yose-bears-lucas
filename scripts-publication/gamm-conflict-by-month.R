@@ -49,7 +49,6 @@ total_global_tmb_gam <- glmmTMB(
     
     # covariates of interest
     precip_prior_scaled +
-    active_bears_scaled +
     visitors_scaled +
     acorn_total_scaled +
     
@@ -105,7 +104,6 @@ ggplot(scaled_global_data, aes(x = time)) +
 season_grid <- data.frame(
   month_of_year = seq(1, 12, length.out = 200),
   precip_prior_scaled = 0,
-  active_bears_scaled = 0,
   visitors_scaled     = 0,
   acorn_total_scaled  = 0,
   time = median(scaled_global_data$time)
@@ -141,14 +139,14 @@ season_grid$upr <- apply(mu_sim, 2, quantile, 0.975)
 
 ## --- plot ---
 (season_plot <- ggplot(season_grid, aes(month_of_year, fit)) +
-  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
-  geom_line(linewidth = 1) +
-  scale_x_continuous(breaks = 1:12, labels = month.abb) +
-  labs(
-    x = "Month",
-    y = "Expected number of incidents"
-  ) +
-  theme_minimal())
+    geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
+    geom_line(linewidth = 1) +
+    scale_x_continuous(breaks = 1:12, labels = month.abb) +
+    labs(
+      x = "Month",
+      y = "Expected number of incidents"
+    ) +
+    theme_minimal())
 
 # Covariate plot - vistors
 
@@ -162,7 +160,6 @@ visitor_grid <- data.frame(
                             max(scaled_global_data$visitors_scaled), 
                             length.out = 100),
   precip_prior_scaled = 0,
-  active_bears_scaled = 0,
   acorn_total_scaled  = 0,
   month_of_year = 6, # June as reference month
   time = median(scaled_global_data$time)
@@ -202,13 +199,13 @@ visitor_grid$visitors_original <-
 
 ## --- plot with CI ribbon ---
 (visitor_plot <- ggplot(visitor_grid, aes(visitors_original, fit)) +
-  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
-  geom_line(linewidth = 1) +
-  labs(
-    x = "Number of visitors",
-    y = "Expected number of incidents"
-  ) +
-  theme_minimal())
+    geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
+    geom_line(linewidth = 1) +
+    labs(
+      x = "Number of visitors",
+      y = "Expected number of incidents"
+    ) +
+    theme_minimal())
 
 
 # Covariate plot - acorns
@@ -221,9 +218,8 @@ acorn_scale  <- attr(scale(scaled_global_data$acorn_total), "scaled:scale")
 acorn_grid <- data.frame(
   acorn_total_scaled     = seq(min(scaled_global_data$acorn_total_scaled),
                                max(scaled_global_data$acorn_total_scaled), 
-                              length.out = 100),
+                               length.out = 100),
   precip_prior_scaled = 0,
-  active_bears_scaled = 0,
   visitors_scaled = 0,
   month_of_year = 6,
   time = median(scaled_global_data$time)
@@ -263,13 +259,13 @@ acorn_grid$acorns_original <-
 
 ## --- plot with CI ribbon ---
 (acorn_plot <- ggplot(acorn_grid, aes(acorns_original, fit)) +
-  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
-  geom_line(linewidth = 1) +
-  labs(
-    x = "Acorn value (?)",
-    y = "Expected number of incidents"
-  ) +
-  theme_minimal())
+    geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
+    geom_line(linewidth = 1) +
+    labs(
+      x = "Acorn abundance",
+      y = "Expected number of incidents"
+    ) +
+    theme_minimal())
 
 
 # Covariate plot - precipitation
@@ -281,10 +277,9 @@ precip_scale  <- attr(scale(scaled_global_data$precip_prior), "scaled:scale")
 ## --- prediction grid ---
 precip_grid <- data.frame(
   precip_prior_scaled     = seq(min(scaled_global_data$precip_prior_scaled),
-                               max(scaled_global_data$precip_prior_scaled), 
-                               length.out = 100),
+                                max(scaled_global_data$precip_prior_scaled), 
+                                length.out = 100),
   acorn_total_scaled = 0,
-  active_bears_scaled = 0,
   visitors_scaled = 0,
   month_of_year = 6,
   time = median(scaled_global_data$time)
@@ -324,91 +319,31 @@ precip_grid$precip_original <-
 
 ## --- plot with CI ribbon ---
 (precipitation_plot <- ggplot(precip_grid, aes(precip_original, fit)) +
-  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
-  geom_line(linewidth = 1) +
-  labs(
-    x = "Prior accumulated precipitation (?)",
-    y = "Expected number of incidents"
-  ) +
-  theme_minimal())
+    geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
+    geom_line(linewidth = 1) +
+    labs(
+      x = "Prior accumulated precipitation",
+      y = "Expected number of incidents"
+    ) +
+    theme_minimal())
 
-# Covariate plot - active bears
-
-## --- recover scaling parameters ---
-activebear_center <- attr(scale(scaled_global_data$active_bears), "scaled:center")
-activebear_scale  <- attr(scale(scaled_global_data$active_bears), "scaled:scale")
-
-## --- prediction grid ---
-activebear_grid <- data.frame(
-  active_bears_scaled     = seq(min(scaled_global_data$active_bears_scaled),
-                                max(scaled_global_data$active_bears_scaled), 
-                                length.out = 100),
-  acorn_total_scaled = 0,
-  precip_prior_scaled = 0,
-  visitors_scaled = 0,
-  month_of_year = 6,
-  time = median(scaled_global_data$time)
-)
-
-## --- add spline basis ---
-X_vis <- PredictMat(smooth_obj[[1]], activebear_grid)
-colnames(X_vis) <- c("s_month_1","s_month_2","s_month_3","s_month_4")
-activebear_grid <- cbind(activebear_grid, X_vis)
-
-## --- point predictions ---
-activebear_grid$fit <- predict(
-  total_global_tmb_gam,
-  newdata = activebear_grid,
-  type = "response"
-)
-
-## --- CI simulation on link scale ---
-Xp <- model.matrix(delete.response(terms(total_global_tmb_gam)), activebear_grid)
-beta_hat <- fixef(total_global_tmb_gam)$cond
-V <- vcov(total_global_tmb_gam)$cond
-
-linpred_sim <- mvrnorm(
-  n = 50000,
-  mu = as.vector(Xp %*% beta_hat),
-  Sigma = Xp %*% V %*% t(Xp)
-)
-
-mu_sim <- exp(linpred_sim)
-
-activebear_grid$lwr <- apply(mu_sim, 2, quantile, 0.025)
-activebear_grid$upr <- apply(mu_sim, 2, quantile, 0.975)
-
-## --- back-transform precipitation ---
-activebear_grid$activebear_original <-
-  activebear_grid$active_bears_scaled * activebear_scale + activebear_center
-
-## --- plot with CI ribbon ---
-(activebear_plot <- ggplot(activebear_grid, aes(activebear_original, fit)) +
-  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
-  geom_line(linewidth = 1) +
-  labs(
-    x = "Number of active bears",
-    y = "Expected number of incidents"
-  ) +
-  theme_minimal())
 
 # Combine plots
 library(patchwork)
 
 (multi_panel_plot <-
-  (season_plot | precipitation_plot | visitor_plot) /
-  (activebear_plot | acorn_plot | plot_spacer()) +
-  plot_annotation(tag_levels = "A"))
+    ((season_plot | precipitation_plot) /
+       (acorn_plot | visitor_plot)) +
+    plot_annotation(tag_levels = "A"))
 
 
 common_ylim <- c(0, 50)
 season_plot2        <- season_plot        + coord_cartesian(ylim = common_ylim)
 precipitation_plot2 <- precipitation_plot + coord_cartesian(ylim = common_ylim)
-activebear_plot2    <- activebear_plot    + coord_cartesian(ylim = common_ylim)
 acorn_plot2         <- acorn_plot         + coord_cartesian(ylim = common_ylim)
 visitor_plot2       <- visitor_plot       + coord_cartesian(ylim = common_ylim)
 
 (multi_panel_plot <-
-    (season_plot2 | precipitation_plot2 | visitor_plot2) /
-    (activebear_plot2 | acorn_plot2 | plot_spacer()) +
+    ((season_plot2 | precipitation_plot2) /
+       (acorn_plot2 | visitor_plot2)) +
     plot_annotation(tag_levels = "A"))
