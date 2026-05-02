@@ -1,6 +1,7 @@
 source("scripts-publication/gamm-conflict-by-month.R")
 
-
+library(scales)
+library(patchwork)
 
 # Month ---------------------------------------------------------
 
@@ -48,9 +49,10 @@ season_grid$upr <- apply(mu_sim, 2, quantile, 0.975)
     scale_x_continuous(breaks = 1:12, labels = month.abb) +
     labs(
       x = "Month",
-      y = "Expected number of incidents"
+      y = "Predicted number of conflicts"
     ) +
-    theme_minimal())
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank()))
 
 
 # Visitors ----------------------------------------------------------------
@@ -106,11 +108,13 @@ visitor_grid$visitors_original <-
 (visitor_plot <- ggplot(visitor_grid, aes(visitors_original, fit)) +
     geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
     geom_line(linewidth = 1) +
+    scale_x_continuous(labels = label_number(scale = 1/1000)) +
     labs(
-      x = "Number of visitors",
-      y = "Expected number of incidents"
+      x = "Number of visitors (thousands)",
+      y = "Predicted number of conflicts"
     ) +
-    theme_minimal())
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank()))
 
 
 # Acorns ----------------------------------------------------------------
@@ -168,9 +172,10 @@ acorn_grid$acorns_original <-
     geom_line(linewidth = 1) +
     labs(
       x = "Acorn abundance",
-      y = "Expected number of incidents"
+      y = "Predicted number of conflicts"
     ) +
-    theme_minimal())
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank()))
 
 
 # Precipitation ----------------------------------------------------------------
@@ -228,14 +233,13 @@ precip_grid$precip_original <-
     geom_line(linewidth = 1) +
     labs(
       x = "Prior accumulated precipitation",
-      y = "Expected number of incidents"
+      y = "Predicted number of conflicts"
     ) +
-    theme_minimal())
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank()))
 
 
 # Combine plots ----------------------------------------------------------------
-
-library(patchwork)
 
 (multi_panel_plot <-
     ((season_plot | precipitation_plot) /
@@ -253,3 +257,4 @@ visitor_plot2       <- visitor_plot       + coord_cartesian(ylim = common_ylim)
     ((season_plot2 | precipitation_plot2) /
        (acorn_plot2 | visitor_plot2)) +
     plot_annotation(tag_levels = "A"))
+
