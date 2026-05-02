@@ -44,7 +44,7 @@ season_grid$upr <- apply(mu_sim, 2, quantile, 0.975)
 
 ## --- plot ---
 (season_plot <- ggplot(season_grid, aes(month_of_year, fit)) +
-    geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
+    geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "#ADD8E6", alpha = 0.25) +
     geom_line(linewidth = 1) +
     scale_x_continuous(breaks = 1:12, labels = month.abb) +
     labs(
@@ -106,7 +106,7 @@ visitor_grid$visitors_original <-
 
 ## --- plot with CI ribbon ---
 (visitor_plot <- ggplot(visitor_grid, aes(visitors_original, fit)) +
-    geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
+    geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "#ADD8E6", alpha = 0.25) +
     geom_line(linewidth = 1) +
     scale_x_continuous(labels = label_number(scale = 1/1000)) +
     labs(
@@ -168,7 +168,7 @@ acorn_grid$acorns_original <-
 
 ## --- plot with CI ribbon ---
 (acorn_plot <- ggplot(acorn_grid, aes(acorns_original, fit)) +
-    geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
+    geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "#ADD8E6", alpha = 0.25) +
     geom_line(linewidth = 1) +
     labs(
       x = "Acorn abundance",
@@ -229,7 +229,7 @@ precip_grid$precip_original <-
 
 ## --- plot with CI ribbon ---
 (precipitation_plot <- ggplot(precip_grid, aes(precip_original, fit)) +
-    geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
+    geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "#ADD8E6", alpha = 0.25) +
     geom_line(linewidth = 1) +
     labs(
       x = "Prior accumulated precipitation",
@@ -258,3 +258,9 @@ visitor_plot2       <- visitor_plot       + coord_cartesian(ylim = common_ylim)
        (acorn_plot2 | visitor_plot2)) +
     plot_annotation(tag_levels = "A"))
 
+ggsave(
+  "figures/gamm-predictions-plot.png",
+  multi_panel_plot,
+  width = 10,
+  height = 8,
+  dpi = 300)
