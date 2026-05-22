@@ -87,68 +87,6 @@ uncertain <- incident_bear %>% filter(has_uncertain == TRUE)
    left_join(meta_all, by = "Bear ID") %>%
    mutate(est_age = year(IncidentDate) - as.numeric(est_year_born)) 
  
- 
- # -------------------------
- # Plot 1: Incidents by sex
- # -------------------------
- 
- sex_summary <- incident_meta %>%
-   filter(!is.na(Sex)) %>%
-   count(Sex)
- 
- ggplot(sex_summary, aes(x = Sex, y = n)) +
-   geom_col() +
-   labs(
-     x = "Sex",
-     y = "Number of incidents",
-   ) + 
-   theme_minimal()
- 
- # -------------------------
- # Plot 2: Incidents by age
- # -------------------------
- 
- age_counts <- incident_meta %>%
-   filter(!is.na(est_age)) %>%
-   count(est_age)
- 
- ggplot(age_counts, aes(x = est_age, y = n)) +
-   geom_col(width = 0.85) +
-   labs(
-     x = "Estimated bear age",
-     y = "Number of incidents"
-   ) +
-   theme_minimal()
- 
- # -------------------------
- # Age by sex
- # -------------------------
- 
- age_sex_counts <- incident_meta %>%
-   filter(!is.na(est_age), !is.na(Sex)) %>%
-   count(est_age, Sex)
- 
- age_sex_counts_certain <- incident_meta %>%
-   filter(has_uncertain == FALSE) %>% 
-   filter(!is.na(est_age), !is.na(Sex)) %>%
-   count(est_age, Sex)
- 
- ggplot(age_sex_counts_certain, aes(x = est_age, y = n, fill = Sex)) +
-   geom_col(position = "identity", width = 0.9) +
-   labs(
-     x = "Estimated bear age",
-     y = "Number of incidents"
-   ) +
-   scale_y_continuous(expand = c(0, 0)) +
-   scale_x_continuous(expand = c(0, 0)) +
-   theme_minimal() +
-   theme(
-     panel.background = element_blank(),
-     plot.background = element_blank(),
-     axis.line = element_line(color = "black"),
-     panel.grid = element_blank()
-   )
- 
  # Join with filtered/cleaned incident data from "01-clean-incident-data.R"
 cleaned_incidents <- read_csv("data_cleaned/cleaned_incidents_noRBDB.csv")
 
