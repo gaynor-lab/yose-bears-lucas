@@ -2,7 +2,7 @@ library(tidyr)
 library(dplyr)
 library(stringr)
 
-incident_bear <- readxl::read_xlsx("data_cleaned/incidents_withbearID.xlsx") %>%
+incident_bear <- readxl::read_xlsx("data_raw/incidents_withbearID.xlsx") %>%
   rename(BearID = "Bear ID (tag # or ID#)") %>%
   mutate(
     bearID_extracted = str_extract_all(BearID, "\\b\\d{3,4}\\b"),
@@ -42,6 +42,8 @@ incident_summary %>%
     without_bear = sum(!has_bear)
   )
 
+# check through uncertains
+uncertain <- incident_bear %>% filter(has_uncertain == TRUE)
 
 
  
@@ -146,6 +148,25 @@ incident_summary %>%
      axis.line = element_line(color = "black"),
      panel.grid = element_blank()
    )
+ 
+ # Join with filtered/cleaned incident data from "01-clean-incident-data.R"
+cleaned_incidents <- read_csv("data_cleaned/cleaned_incidents_noRBDB.csv")
+
+ incident_full <- cleaned_incidents %>%
+   left_join(
+     incident_meta %>%
+       select(
+         IncidentID,
+         `Bear ID`,
+         has_uncertain,
+         Sex,
+         est_age
+       ) %>%
+       distinct(),
+     by = "IncidentID"
+   ) 
+ 
+ write_csv(incident_full, "data_cleaned/incidents_clean_with_bear_info.csv")
  
  
  
