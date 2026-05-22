@@ -23,7 +23,7 @@ incident_counts <- incident_summary %>%
 incident_counts #325 have bear ID ut of 1161
 
 
-# look at howm many are uncertain 
+# look at how many are uncertain 
 
 incident_summary <- incident_bear %>%
   group_by(IncidentID) %>%
@@ -41,7 +41,6 @@ incident_summary %>%
     uncertain = sum(has_uncertain),
     without_bear = sum(!has_bear)
   )
-
 
 
 
@@ -68,6 +67,86 @@ incident_summary %>%
  per_bear <- incident_bear_long %>%
    count(bearID_extracted, sort = TRUE)
  
- #
+ # Bring in bear metadata
+ meta_all <- bind_rows(
+   read_csv("data_raw/Bear Captures 1990-2021.csv"),
+   read_csv("data_raw/Bear_Captures_2022-2025.csv")
+ ) %>%
+   mutate(est_year_born = as.numeric(Year) - as.numeric(`Est. Age`)) %>%
+   select(Year, `Bear ID`, Sex, est_year_born, Outcome) %>%
+   arrange(desc(Year)) %>%
+   distinct(`Bear ID`, .keep_all = TRUE) %>%
+   select(-Year) %>%
+   arrange(est_year_born)
+ 
+ # Match bears with bear metadata
+ incident_meta <- incident_bear_long %>% 
+   rename(`Bear ID` = bearID_extracted) %>% 
+   left_join(meta_all, by = "Bear ID") %>%
+   mutate(est_age = year(IncidentDate) - as.numeric(est_year_born)) 
+ 
+ 
+ # -------------------------
+ # Plot 1: Incidents by sex
+ # -------------------------
+ 
+ sex_summary <- incident_meta %>%
+   filter(!is.na(Sex)) %>%
+   count(Sex)
+ 
+ ggplot(sex_summary, aes(x = Sex, y = n)) +
+   geom_col() +
+   labs(
+     x = "Sex",
+     y = "Number of incidents",
+   ) + 
+   theme_minimal()
+ 
+ # -------------------------
+ # Plot 2: Incidents by age
+ # -------------------------
+ 
+ age_counts <- incident_meta %>%
+   filter(!is.na(est_age)) %>%
+   count(est_age)
+ 
+ ggplot(age_counts, aes(x = est_age, y = n)) +
+   geom_col(width = 0.85) +
+   labs(
+     x = "Estimated bear age",
+     y = "Number of incidents"
+   ) +
+   theme_minimal()
+ 
+ # -------------------------
+ # Age by sex
+ # -------------------------
+ 
+ age_sex_counts <- incident_meta %>%
+   filter(!is.na(est_age), !is.na(Sex)) %>%
+   count(est_age, Sex)
+ 
+ age_sex_counts_certain <- incident_meta %>%
+   filter(has_uncertain == FALSE) %>% 
+   filter(!is.na(est_age), !is.na(Sex)) %>%
+   count(est_age, Sex)
+ 
+ ggplot(age_sex_counts_certain, aes(x = est_age, y = n, fill = Sex)) +
+   geom_col(position = "identity", width = 0.9) +
+   labs(
+     x = "Estimated bear age",
+     y = "Number of incidents"
+   ) +
+   scale_y_continuous(expand = c(0, 0)) +
+   scale_x_continuous(expand = c(0, 0)) +
+   theme_minimal() +
+   theme(
+     panel.background = element_blank(),
+     plot.background = element_blank(),
+     axis.line = element_line(color = "black"),
+     panel.grid = element_blank()
+   )
+ 
+ 
  
  
