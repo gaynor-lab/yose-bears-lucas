@@ -15,6 +15,7 @@ library(purrr)
 library(readr)
 library(car)
 library(lubridate)
+library(broom.mixed)
 
 # =============================================================================
 # 1. LOAD DATA AND REMOVE COVID CLOSURE MONTHS
@@ -23,7 +24,7 @@ library(lubridate)
 # this period, making visitation and incident counts unrepresentative of normal
 # conditions. Removing these 4 rows leaves 188 monthly observations.
 
-incidents <- read_csv("data_cleaned/monthly_incidents_covar_cleaned.csv") %>%
+incidents <- read_csv("data_cleaned/monthly_incidents_covar_cleaned.csv") %>% 
   mutate(
     Year  = as.factor(Year),
     Month = as.factor(Month)
@@ -95,7 +96,7 @@ incidents %>%
 # High variance = more interannual signal available for modeling.
 
 incidents %>%
-  dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -ends_with("_scaled"), -("month_of_year"), -("time")) %>%
+  dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -ends_with("_scaled")) %>%
   group_by(Month) %>%
   summarise(across(where(is.numeric), ~ var(.x, na.rm = TRUE))) %>%
   pivot_longer(-Month, names_to = "covariate", values_to = "variance") %>%
@@ -105,7 +106,7 @@ incidents %>%
 # Visual: each line = one month, plotted across years per covariate
 # Lines with high spread = high interannual variability within that month
 incidents %>%
-  dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -ends_with("_scaled"), -("month_of_year"), -("time")) %>%
+  dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -ends_with("_scaled")) %>%
   pivot_longer(c(-Month, -Year), names_to = "covariate", values_to = "value") %>%
   ggplot(aes(x = Year, y = value, group = Month, color = Month)) +
   geom_line() +
@@ -389,7 +390,7 @@ testTemporalAutocorrelation(sim_res, time = incidents$time)
 
 # Check residuals against individual predictors to spot remaining patterns
 plotResiduals(sim_res, incidents$Month)
-plotResiduals(sim_res, incidents$Year)
+plotResiduals(sim_res, incidents$Year) #2010 and 2019 signficiantly differ
 
 # =============================================================================
 # 12. OBSERVED VS. PREDICTED
@@ -398,12 +399,45 @@ plotResiduals(sim_res, incidents$Year)
 incidents$predicted <- predict(model_zi_spline, type = "response")
 
 ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
-  geom_line(aes(y = number_incidents), color = "black", alpha = 0.6) +
-  geom_line(aes(y = predicted), color = "red", linewidth = 1) +
+  geom_line(aes(y = number_incidents, color = "Observed"), alpha = 0.6) +
+  geom_line(aes(y = predicted, color = "Predicted"), linewidth = 1) +
   labs(
-    y        = "Incidents",
-    x        = "Date",
-    title    = "Observed vs fitted incidents",
-    subtitle = "ZINB GAMM with cyclic seasonality and AR(1)"
+    y = "Incidents",
+    x = "Date",
+    color = NULL
+  ) +
+  scale_color_manual(
+    values = c(
+      "Observed" = "black",
+      "Predicted" = "red"
+    )
   ) +
   theme_minimal()
+
+# =============================================================================
+# 13. Look at coefficient estimates
+# =============================================================================
+fit <- glmmTMB(
+  base_formula,
+  ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
+  family    = nbinom2,
+  data      = incidents
+)
+
+cond_eff <- broom.mixed::tidy(
+  fit,
+  effects = "fixed",
+  conf.int = TRUE
+)  %>%
+  filter(!grepl("^s_month_", term))
+
+
+ggplot(cond_eff %>% filter(component == "cond"),
+       aes(x = reorder(term, estimate), y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "blue") +
+  labs(x = NULL, y = "Estimate") +
+  theme_bw()
+
