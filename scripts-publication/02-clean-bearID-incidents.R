@@ -84,7 +84,7 @@ meta_all <- bind_rows(
   select(`Bear ID`, Sex, est_year_born, Outcome) %>%
   distinct(`Bear ID`, .keep_all = TRUE)
 
-# Add manualrecords for bears not in spreadsheets
+# Add manual records for bears not in spreadsheets
 meta_all <- bind_rows(
   meta_all,
   tibble(
