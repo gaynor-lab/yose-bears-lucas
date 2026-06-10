@@ -45,7 +45,7 @@ reshape_sheet <- function(cfg) {
     mutate(
       Month_Year = paste0(Year, "-", month_map[month_abbr])
     ) |>
-    select(Month_Year, all_of(cfg$name))
+    dplyr::select(Month_Year, all_of(cfg$name))
 }
 
 # Reshape each sheet and join on Month_Year
@@ -123,7 +123,7 @@ monthly_incidents_all <- monthly_incidents_all %>%
 #     values_from = -c(YEAR, LOC, SPECIES),
 #     names_sep = "_"
 #   ) %>%
-#   select(YEAR, N30_CHRYSOLEPIS, N30_KELLOGGII) #canyon live oak is CHRYSOLEPIS #black oak is KELLOGGII
+#   dplyr::select(YEAR, N30_CHRYSOLEPIS, N30_KELLOGGII) #canyon live oak is CHRYSOLEPIS #black oak is KELLOGGII
 # 
 # monthly_incidents_all <- monthly_incidents_all %>%
 #   left_join(acorn_wide, by = c("Year" = "YEAR")) %>%
@@ -158,7 +158,7 @@ acorn_wide <- acorn_data %>%
     values_from = -c(YEAR, LOC, SPECIES),
     names_sep = "_"
   ) %>%
-  select(YEAR, N30_CHRYSOLEPIS, N30_KELLOGGII)
+  dplyr::select(YEAR, N30_CHRYSOLEPIS, N30_KELLOGGII)
 
 # ---------------------------------------------------------------------------
 # Phenology multipliers (proportion of September survey value available)
@@ -212,7 +212,7 @@ monthly_incidents_all <- monthly_incidents_all %>%
     N30_CHRYSOLEPIS = mapply(apply_phenology, N30_CHRYSOLEPIS, Month_Num, "CHRYSOLEPIS"),
     N30_KELLOGGII   = mapply(apply_phenology, N30_KELLOGGII,   Month_Num, "KELLOGGII")
   ) %>%
-  select(-Month_Num)
+  dplyr::select(-Month_Num)
 
 # Visualize
 # monthly_incidents_all %>%
@@ -260,7 +260,7 @@ visitation_long <- visitation %>%
     Month_Year = format(as.Date(paste(Year, month, "01"), "%Y %b %d"), "%Y-%m"),
     visitors = as.numeric(gsub(",", "", visitors))
   ) %>%
-  select(Month_Year, visitors)
+  dplyr::select(Month_Year, visitors)
 
 monthly_incidents_all <- monthly_incidents_all %>%
   left_join(visitation_long, by = "Month_Year")
@@ -278,15 +278,12 @@ lagged_covariates <- mesonet_long %>%
   mutate(
     
     # PRECIPITATION WINDOWS
-    
-    # 2–4 months (short-term fruit development)
     precip_2_4 = rowSums(cbind(
       lag(precip_total_inch, 2),
       lag(precip_total_inch, 3),
       lag(precip_total_inch, 4)
     ), na.rm = TRUE),
     
-    # 3–7 months (core berry production window)
     precip_3_7 = rowSums(cbind(
       lag(precip_total_inch, 3),
       lag(precip_total_inch, 4),
@@ -295,7 +292,6 @@ lagged_covariates <- mesonet_long %>%
       lag(precip_total_inch, 7)
     ), na.rm = TRUE),
     
-    # 4–12 months (vegetation + soil moisture memory)
     precip_4_12 = rowSums(cbind(
       lag(precip_total_inch, 4),
       lag(precip_total_inch, 5),
@@ -309,15 +305,12 @@ lagged_covariates <- mesonet_long %>%
     ), na.rm = TRUE),
     
     # STREAMFLOW WINDOWS
-    
-    # 2–4 months (recent hydrologic conditions)
     flow_2_4 = rowMeans(cbind(
       lag(avg_flow, 2),
       lag(avg_flow, 3),
       lag(avg_flow, 4)
     ), na.rm = TRUE),
     
-    # 3–7 months (seasonal water availability)
     flow_3_7 = rowMeans(cbind(
       lag(avg_flow, 3),
       lag(avg_flow, 4),
@@ -326,7 +319,6 @@ lagged_covariates <- mesonet_long %>%
       lag(avg_flow, 7)
     ), na.rm = TRUE),
     
-    # 4–12 months (hydrologic memory / drought signal)
     flow_4_12 = rowMeans(cbind(
       lag(avg_flow, 4),
       lag(avg_flow, 5),
@@ -337,18 +329,44 @@ lagged_covariates <- mesonet_long %>%
       lag(avg_flow, 10),
       lag(avg_flow, 11),
       lag(avg_flow, 12)
+    ), na.rm = TRUE),
+    
+    # TEMPERATURE WINDOWS
+    temp_2_4 = rowMeans(cbind(
+      lag(avg_tmp_f, 2),
+      lag(avg_tmp_f, 3),
+      lag(avg_tmp_f, 4)
+    ), na.rm = TRUE),
+    
+    temp_3_7 = rowMeans(cbind(
+      lag(avg_tmp_f, 3),
+      lag(avg_tmp_f, 4),
+      lag(avg_tmp_f, 5),
+      lag(avg_tmp_f, 6),
+      lag(avg_tmp_f, 7)
+    ), na.rm = TRUE),
+    
+    temp_4_12 = rowMeans(cbind(
+      lag(avg_tmp_f, 4),
+      lag(avg_tmp_f, 5),
+      lag(avg_tmp_f, 6),
+      lag(avg_tmp_f, 7),
+      lag(avg_tmp_f, 8),
+      lag(avg_tmp_f, 9),
+      lag(avg_tmp_f, 10),
+      lag(avg_tmp_f, 11),
+      lag(avg_tmp_f, 12)
     ), na.rm = TRUE)
     
   ) %>%
-  select(
+  dplyr::select(
     Month_Year,
     precip_2_4, precip_3_7, precip_4_12,
-    flow_2_4, flow_3_7, flow_4_12
-  )
+    flow_2_4, flow_3_7, flow_4_12,
+    temp_2_4, temp_3_7, temp_4_12
+  ) 
 
-# Now join everything onto monthly_incidents_all
-lagged_data <- monthly_incidents_all %>%
-  left_join(lagged_covariates, by = "Month_Year")
+lagged_data <- left_join(monthly_incidents_all, lagged_covariates)
 
 
 write_csv(lagged_data, "data_cleaned/monthly_incidents_covar_cleaned.csv")
@@ -400,7 +418,7 @@ anomaly_ccf_data <- mesonet_long %>%
     precip_anomaly = precip_total_inch - mean_precip,
     flow_anomaly   = avg_flow          - mean_flow
   ) %>%
-  left_join(monthly_incidents_all %>% select(Month_Year, total_incidents),
+  left_join(monthly_incidents_all %>% dplyr::select(Month_Year, total_incidents),
             by = "Month_Year") %>%
   arrange(Month_Year) %>%
   filter(!is.na(total_incidents))
