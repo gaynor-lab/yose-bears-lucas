@@ -8,6 +8,18 @@ library(ggplot2)
 monthly_incidents_all <- read_csv("data_cleaned/monthly_incidents_all.csv")
 
 #---------------------------------------------------------
+# NDVI/EVI data
+#---------------------------------------------------------
+ndvi_evi <- read_csv("data_raw/YosemiteValley_NDVI_EVI_monthly_2010_2025.csv") %>%
+  mutate(
+    date = as.Date(date),
+    Month_Year = format(date, "%Y-%m")
+  ) %>% 
+  select(Month_Year, evi_mean, ndvi_mean)
+
+monthly_incidents_all <- monthly_incidents_all %>%
+  left_join(ndvi_evi, by = "Month_Year")
+#---------------------------------------------------------
 # Climate data
 #---------------------------------------------------------
 
@@ -214,34 +226,34 @@ monthly_incidents_all <- monthly_incidents_all %>%
   ) %>%
   dplyr::select(-Month_Num)
 
-# Visualize
-# monthly_incidents_all %>%
-#   mutate(Date = ym(Month_Year)) %>%
-#   pivot_longer(
-#     cols = c(N30_CHRYSOLEPIS, N30_KELLOGGII),
-#     names_to  = "Species",
-#     values_to = "Acorns"
-#   ) %>%
-#   mutate(Species = recode(Species,
-#                           N30_CHRYSOLEPIS = "Canyon live oak",
-#                           N30_KELLOGGII   = "California black oak"
-#   )) %>%
-#   ggplot(aes(x = Date, y = Acorns, colour = Species)) +
-#   geom_line(linewidth = 0.7) +
-#   scale_x_date(date_breaks = "6 months", date_labels = "%b %Y") +
-#   scale_colour_manual(values = c("Canyon live oak" = "#D55E00",
-#                                  "California black oak" = "#0072B2")) +
-#   labs(
-#     x       = "Month-Year",
-#     y       = "Acorn count",
-#     colour  = NULL,
-#   ) +
-#   theme_bw() +
-#   theme(
-#     legend.position   = "top",
-#     axis.text.x       = element_text(angle = 45, hjust = 1),
-#     panel.grid.minor  = element_blank()
-#   )
+#Visualize
+monthly_incidents_all %>%
+  mutate(Date = ym(Month_Year)) %>%
+  pivot_longer(
+    cols = c(N30_CHRYSOLEPIS, N30_KELLOGGII),
+    names_to  = "Species",
+    values_to = "Acorns"
+  ) %>%
+  mutate(Species = dplyr::recode(Species,
+                          N30_CHRYSOLEPIS = "Canyon live oak",
+                          N30_KELLOGGII   = "California black oak"
+  )) %>%
+  ggplot(aes(x = Date, y = Acorns, colour = Species)) +
+  geom_line(linewidth = 0.7) +
+  scale_x_date(date_breaks = "6 months", date_labels = "%b %Y") +
+  scale_colour_manual(values = c("Canyon live oak" = "#D55E00",
+                                 "California black oak" = "#0072B2")) +
+  labs(
+    x       = "Month-Year",
+    y       = "Acorn count",
+    colour  = NULL,
+  ) +
+  theme_bw() +
+  theme(
+    legend.position   = "top",
+    axis.text.x       = element_text(angle = 45, hjust = 1),
+    panel.grid.minor  = element_blank()
+  )
  
 #---------------------------------------------------------
 # Visitation data

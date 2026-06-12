@@ -17,6 +17,8 @@ library(car)
 library(lubridate)
 library(broom.mixed)
 
+# USE SAME VARIABLES FOR HBV AND FOOD
+
 # =============================================================================
 # 1. LOAD DATA AND REMOVE COVID CLOSURE MONTHS
 # =============================================================================
@@ -49,24 +51,27 @@ incidents <- incidents %>%
 # scale() returns a matrix; [, 1] drops the matrix dimension to a plain vector.
 incidents <- incidents %>%
   mutate(across(
-    where(is.numeric) & !contains("incidents"),
+    where(is.numeric) & !contains("incidents") & !contains("days_month"),
     ~ scale(.)[, 1],
     .names = "{.col}_scaled"
   ))
 
+# arrange by time
+incidents <- incidents[order(incidents$Month_Year), ]
+
 # =============================================================================
 # 3. COVARIATE COLLINEARITY: CORRELATION MATRIX
 # =============================================================================
-
 # Numeric correlation table
 incidents %>%
-  dplyr::select(ends_with("_scaled")) %>%
+  dplyr::select(evi_mean_scaled, N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_4_12_scaled, flow_4_12_scaled, temp_4_12_scaled) %>%
   cor(use = "complete.obs") %>%
   round(2)
 
+
 # Signed correlation plot
 incidents %>%
-  dplyr::select(ends_with("_scaled")) %>%
+  dplyr::select(evi_mean_scaled, N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_4_12_scaled, flow_4_12_scaled, temp_4_12_scaled) %>%
   cor(use = "complete.obs") %>%
   corrplot(
     method = "color",
@@ -76,18 +81,50 @@ incidents %>%
     number.cex  = 0.6
   )
 
-# Absolute value correlation plot (easier to spot strong relationships)
-incidents %>%
-  dplyr::select(ends_with("_scaled")) %>%
-  cor(use = "complete.obs") %>%
-  abs() %>%
-  corrplot(
-    method = "color",
-    type   = "upper",
-    tl.cex = 0.7,
-    addCoef.col = "black",
-    number.cex  = 0.6
-  )
+# =============================================================================
+# COVARIATE CORRELATION GROUPED BY MONTH (excluding N30 and visitor vars)
+# =============================================================================
+
+library(purrr)
+library(corrplot)
+
+# Select relevant scaled variables
+scaled_vars <- incidents %>%
+  dplyr::select(evi_mean_scaled, N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_4_12_scaled, flow_4_12_scaled, temp_4_12_scaled) %>%
+  dplyr::select(-matches("N30|visitor")) %>%
+  names()
+
+# Per-month correlation matrices
+month_cors <- incidents %>%
+  dplyr::select(Month, all_of(scaled_vars)) %>%
+  group_by(Month) %>%
+  group_split() %>%
+  map(function(df) {
+    m <- df %>%
+      dplyr::select(all_of(scaled_vars)) %>%
+      cor(use = "complete.obs")
+    list(month = unique(df$Month), cor_matrix = m)
+  })
+
+# Average correlation across months
+avg_cor <- month_cors %>%
+  map("cor_matrix") %>%
+  reduce(`+`) %>%
+  `/`(length(month_cors)) %>%
+  round(2)
+
+# --- Plot 1: Average r across all months ---
+corrplot(
+  avg_cor,
+  method      = "color",
+  type        = "upper",
+  tl.cex      = 0.7,
+  addCoef.col = "black",
+  number.cex  = 0.6,
+  title       = "Mean |r| across months",
+  mar         = c(0, 0, 2, 0)
+)
+
 
 # =============================================================================
 # 4. WITHIN-MONTH INTERANNUAL VARIANCE
@@ -96,17 +133,17 @@ incidents %>%
 # High variance = more interannual signal available for modeling.
 
 incidents %>%
-  dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -ends_with("_scaled")) %>%
+  dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -contains("month_of_year"), -contains("time"), -ends_with("_scaled")) %>%
   group_by(Month) %>%
   summarise(across(where(is.numeric), ~ var(.x, na.rm = TRUE))) %>%
   pivot_longer(-Month, names_to = "covariate", values_to = "variance") %>%
   arrange(covariate, Month) %>%
-  print(n = 192)
+  print(n = 216)
 
 # Visual: each line = one month, plotted across years per covariate
 # Lines with high spread = high interannual variability within that month
 incidents %>%
-  dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -ends_with("_scaled")) %>%
+  dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -contains("month_of_year"), -contains("time"), -ends_with("_scaled")) %>%
   pivot_longer(c(-Month, -Year), names_to = "covariate", values_to = "value") %>%
   ggplot(aes(x = Year, y = value, group = Month, color = Month)) +
   geom_line() +
@@ -114,28 +151,6 @@ incidents %>%
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
 
-# =============================================================================
-# 5. RESIDUAL CORRELATIONS WITH INCIDENTS
-# =============================================================================
-# Raw correlations between covariates and incidents are dominated by shared
-# seasonality. Instead, we regress out the month effect from both variables
-# and correlate the residuals — this captures interannual signal only.
-
-covariates <- c(
-  "avg_tmp_f", "avg_temp_high_f",
-  "precip_total_inch", "precip_2_4", "precip_3_7", "precip_4_12",
-  "avg_flow", "flow_2_4", "flow_3_7", "flow_4_12",
-  "temp_2_4", "temp_3_7", "temp_4_12",
-  "N30_CHRYSOLEPIS", "N30_KELLOGGII", "visitors"
-)
-
-resid_cors <- sapply(covariates, function(var) {
-  inc_resid <- residuals(lm(number_incidents ~ Month, data = incidents))
-  cov_resid <- residuals(lm(as.formula(paste(var, "~ Month")), data = incidents))
-  cor(inc_resid, cov_resid, use = "complete.obs")
-})
-
-sort(round(resid_cors, 3), decreasing = TRUE)
 
 # =============================================================================
 # 6. CHECK COVARIATE DISTRIBUTIONS
@@ -205,9 +220,8 @@ incidents$time <- seq_len(nrow(incidents))
 # =============================================================================
 # Fit all combinations of precipitation, flow, and temperature lag windows.
 # Each model includes the same fixed structure (spline + AR1 + acorn + visitors
-# + offset). 4 precip × 4 flow × 4 temp = 64 models total. Select by lowest AIC.
-# Note: zero-inflation not included here to keep the grid tractable; lag
-# selection is done on the base NB model and applied to the final ZINB.
+# + offset) and cyclic spline zero-inflation formula.
+# 4 precip × 4 flow × 4 temp = 64 models total. Select by lowest AIC.
 
 precip_candidates <- c("precip_total_inch", "precip_2_4", "precip_3_7", "precip_4_12")
 flow_candidates   <- c("avg_flow", "flow_2_4", "flow_3_7", "flow_4_12")
@@ -228,7 +242,12 @@ fit_lag_model <- function(precip_var, flow_var, temp_var) {
   ))
   
   fit <- tryCatch(
-    glmmTMB(f, family = nbinom2, data = incidents),
+    glmmTMB(
+      f,
+      ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
+      family    = nbinom2,
+      data      = incidents
+    ),
     error = function(e) NULL
   )
   
@@ -257,9 +276,155 @@ aic_results <- pmap_dfr(
 # Best combinations ranked by AIC
 aic_results[order(aic_results$aic_value), ]
 
-# Selected: precip_4_12 + flow_4_12 + temp_4_12 (all 4-12 month windows for
-# consistency; within 2 AIC units of the top combination precip_3_7 + flow_4_12
-# + temp_4_12)
+# =============================================================================
+# AIC COMPARISON: BEST ENV COMBO ACROSS LAG WINDOWS
+# Fixed across all models: both acorn species, visitors, month splines,
+# AR1 autocorrelation, offset
+# =============================================================================
+
+# Define lag windows
+lag_windows <- list(
+  lag_current = list(
+    precip = "precip_total_inch_scaled",  # contemporaneous
+    flow   = "avg_flow_scaled",
+    temp   = "avg_tmp_f_scaled"
+  ),
+  lag_3_7 = list(
+    precip = "precip_3_7_scaled",
+    flow   = "flow_3_7_scaled",
+    temp   = "temp_3_7_scaled"
+  ),
+  lag_4_12 = list(
+    precip = "precip_4_12_scaled",
+    flow   = "flow_4_12_scaled",
+    temp   = "temp_4_12_scaled"
+  )
+)
+
+fit_env_combo_window <- function(use_evi, use_flow, use_temp, 
+                                 use_precip, window_vars, window_name) {
+  env_vars <- c(
+    if (use_evi)    "evi_mean_scaled",
+    if (use_flow)   window_vars$flow,
+    if (use_temp)   window_vars$temp,
+    if (use_precip) window_vars$precip
+  )
+  
+  all_terms <- c(fixed_terms, env_vars)
+  
+  f <- as.formula(paste(
+    "number_incidents ~",
+    paste(all_terms, collapse = " + ")
+  ))
+  
+  fit <- tryCatch(
+    glmmTMB(
+      f,
+      ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
+      family    = nbinom2,
+      data      = incidents
+    ),
+    error = function(e) NULL
+  )
+  
+  data.frame(
+    window    = window_name,
+    evi       = use_evi,
+    flow      = use_flow,
+    temp      = use_temp,
+    precip    = use_precip,
+    env_vars_included = ifelse(
+      length(env_vars) == 0, "none",
+      paste(c("EVI",
+              paste0("flow_", window_name),
+              paste0("temp_", window_name),
+              paste0("precip_", window_name))[c(use_evi, use_flow, use_temp, use_precip)],
+            collapse = " + ")
+    ),
+    aic_value  = if (!is.null(fit)) AIC(fit) else NA,
+    n_env_vars = length(env_vars)
+  )
+}
+
+# Run 16-combo grid for each lag window
+all_window_results <- map_dfr(names(lag_windows), function(wname) {
+  pmap_dfr(
+    list(env_combos$evi, env_combos$flow,
+         env_combos$temp, env_combos$precip),
+    fit_env_combo_window,
+    window_vars  = lag_windows[[wname]],
+    window_name  = wname
+  )
+}) %>% arrange(aic_value)
+
+# Best model per lag window
+best_per_window <- all_window_results %>%
+  group_by(window) %>%
+  slice_min(aic_value, n = 1) %>%
+  ungroup() %>%
+  arrange(aic_value) %>%
+  mutate(delta_aic = round(aic_value - min(aic_value, na.rm = TRUE), 2),
+         aic_value = round(aic_value, 2))
+
+print(best_per_window[, c("window", "env_vars_included", 
+                          "aic_value", "delta_aic")])
+
+# Full results for a specific window if you want to dig in
+all_window_results %>%
+  filter(window == "lag_4_12") %>%
+  arrange(aic_value) %>%
+  mutate(delta_aic = round(aic_value - min(aic_value, na.rm = TRUE), 2)) %>%
+  dplyr::select(env_vars_included, n_env_vars, aic_value, delta_aic)
+
+#MODEL
+full_gam <- glmmTMB(
+  
+  total_incidents ~
+    
+    # covariates of interest
+    precip_4_12 +
+    flow_4_12 + 
+    temp_4_12 + 
+    visitors_scaled +
+    N30_KELLOGGII_scaled +
+    N30_CHRYSOLEPIS_scaled + 
+    
+    
+    # month basis functions
+    s_month_1 + s_month_2 + s_month_3 + s_month_4 +
+    
+    # autoregressive term
+    ar1(time + 0 | 1),
+  
+  # zero-inflation formula
+  ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
+  
+  family = nbinom2,
+  data = incidents
+  
+)
+
+# =============================================================================
+# Diagnostics
+# =============================================================================
+# residuals
+sim_res <- simulateResiduals(full_gam, n = 1000)
+
+plot(sim_res) # all good 
+
+# uniformity (overall fit)
+testUniformity(sim_res)
+
+# over/underdispersion
+testDispersion(sim_res) # mild overdispersion but not signficant 
+
+# zero-inflation
+testZeroInflation(sim_res)
+
+# temporal autocorrelation
+testTemporalAutocorrelation(sim_res, time = incidents$time)
+plotResiduals(sim_res, incidents$time) # significantly deviant
+acf(residuals(sim_res))
 
 # =============================================================================
 # 9. COLLINEARITY CHECKS FOR FINAL COVARIATE SET
@@ -270,7 +435,7 @@ aic_results[order(aic_results$aic_value), ]
 # Concurvity near 1 indicates a smooth term is nearly redundant given others.
 
 gam_check <- gam(
-  number_incidents ~
+  total_incidents ~
     s(month_of_year, bs = "cc", k = 6) +
     precip_4_12_scaled +
     flow_4_12_scaled +
@@ -283,6 +448,8 @@ gam_check <- gam(
   data   = incidents
 )
 
+gam.check(gam_check)
+
 concurvity(gam_check, full = TRUE)   # overall concurvity per term
 concurvity(gam_check, full = FALSE)  # pairwise between terms # there is no pairwise concurvity between model components
 
@@ -293,7 +460,7 @@ concurvity(gam_check, full = FALSE)  # pairwise between terms # there is no pair
 # Thresholds: <3 = fine, 3-5 = moderate, >5 = concerning, >10 = serious
 
 vif_model_nospline <- lm(
-  number_incidents ~
+  total_incidents ~
     precip_4_12_scaled +
     flow_4_12_scaled +
     temp_4_12_scaled +
@@ -305,71 +472,6 @@ vif_model_nospline <- lm(
 
 vif(vif_model_nospline) # all good 
 
-# =============================================================================
-# 10. ZERO-INFLATION MODEL COMPARISON
-# =============================================================================
-# 31% of monthly observations are zeros (59/188), consistent with winter months
-# when bears are denning and the park has low visitation. We compare four
-# zero-inflation structures to determine the best approach.
-
-# Check zero prevalence
-sum(incidents$number_incidents == 0)
-mean(incidents$number_incidents == 0) # 31% of month_years have 0 incidents
-
-# Base model formula (reused across all ZI comparisons)
-base_formula <- number_incidents ~
-  offset(log(days_month)) +
-  precip_4_12_scaled +
-  flow_4_12_scaled +
-  temp_4_12_scaled +
-  visitors_scaled +
-  N30_CHRYSOLEPIS_scaled +
-  N30_KELLOGGII_scaled +
-  s_month_1 + s_month_2 + s_month_3 + s_month_4 +
-  ar1(time + 0 | 1)
-
-# Model 1: Standard NB — no zero inflation
-model_nb <- glmmTMB(
-  base_formula,
-  ziformula = ~ 0,
-  family    = nbinom2,
-  data      = incidents
-)
-
-# Model 2: ZINB with constant zero-inflation probability
-model_zi_intercept <- glmmTMB(
-  base_formula,
-  ziformula = ~ 1,
-  family    = nbinom2,
-  data      = incidents
-)
-
-# Model 3: ZINB with month-factor zero-inflation
-# Zero-inflation probability varies discretely by calendar month
-model_zi_month <- glmmTMB(
-  base_formula,
-  ziformula = ~ Month,
-  family    = nbinom2,
-  data      = incidents
-)
-
-# Model 4: ZINB with cyclic spline zero-inflation (selected model)
-# Zero-inflation probability varies smoothly through the year using the same
-# cyclic spline basis as the count model. More parsimonious than factor month
-# (4 parameters vs 11) and ecologically motivated — bear activity changes
-# gradually, not abruptly between months.
-model_zi_spline <- glmmTMB(
-  base_formula,
-  ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
-  family    = nbinom2,
-  data      = incidents
-)
-
-# Compare all four structures
-AIC(model_nb, model_zi_intercept, model_zi_month, model_zi_spline)
-
-# Result: model_zi_spline wins by ~19 AIC units over base NB and ~12 units
-# over the factor-month ZI model, with only 4 extra parameters.
 
 # =============================================================================
 # 11. DIAGNOSTICS ON FINAL MODEL (model_zi_spline)
@@ -399,7 +501,7 @@ plotResiduals(sim_res, incidents$Year) #2010 and 2019 signficiantly differ
 incidents$predicted <- predict(model_zi_spline, type = "response")
 
 ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
-  geom_line(aes(y = number_incidents, color = "Observed"), alpha = 0.6) +
+  geom_line(aes(y = total_incidents, color = "Observed"), alpha = 0.6) +
   geom_line(aes(y = predicted, color = "Predicted"), linewidth = 1) +
   labs(
     y = "Incidents",
@@ -417,12 +519,30 @@ ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
 # =============================================================================
 # 13. Look at coefficient estimates
 # =============================================================================
+# The model!
 fit <- glmmTMB(
-  base_formula,
+  
+  total_incidents ~
+    
+    # covariates of interest
+    precip_prior_scaled +
+    visitors_scaled +
+    acorn_total_scaled +
+    
+    # month basis functions
+    s_month_1 + s_month_2 + s_month_3 + s_month_4 +
+    
+    # autoregressive term
+    ar1(time + 0 | 1),
+  
+  # zero-inflation formula
   ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
-  family    = nbinom2,
-  data      = incidents
+  
+  family = nbinom2,
+  data = scaled_global_data
+  
 )
+
 
 cond_eff <- broom.mixed::tidy(
   fit,
