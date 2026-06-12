@@ -1,8 +1,8 @@
 # =============================================================================
 # Covariate Preparation, Selection & Fitting
 # =============================================================================
-# So far this is only for non-RBDB incidents!
-# =============================================================================
+
+# Next step: model HBV and food-related incidents too (with same model structure )
 
 library(mgcv)
 library(glmmTMB)
@@ -17,10 +17,9 @@ library(car)
 library(lubridate)
 library(broom.mixed)
 
-# USE SAME VARIABLES FOR HBV AND FOOD
 
 # =============================================================================
-# 1. LOAD DATA AND REMOVE COVID CLOSURE MONTHS
+# LOAD DATA AND REMOVE COVID CLOSURE MONTHS
 # =============================================================================
 # March–June 2020 are excluded because Yosemite was closed to visitors during
 # this period, making visitation and incident counts unrepresentative of normal
@@ -34,7 +33,7 @@ incidents <- read_csv("data_cleaned/monthly_incidents_covar_cleaned.csv") %>%
   filter(!(Month_Year >= "2020-03" & Month_Year <= "2020-06"))
 
 # =============================================================================
-# 2. ADD OFFSET AND SCALE COVARIATES
+# ADD OFFSET AND SCALE COVARIATES
 # =============================================================================
 
 # Add days per month — used as model offset to account for variation in
@@ -60,7 +59,7 @@ incidents <- incidents %>%
 incidents <- incidents[order(incidents$Month_Year), ]
 
 # =============================================================================
-# 3. COVARIATE COLLINEARITY: CORRELATION MATRIX
+# COVARIATE COLLINEARITY: CORRELATION MATRIX
 # =============================================================================
 # Numeric correlation table
 incidents %>%
@@ -82,7 +81,7 @@ incidents %>%
   )
 
 # =============================================================================
-# COVARIATE CORRELATION GROUPED BY MONTH (excluding N30 and visitor vars)
+# COVARIATE CORRELATION GROUPED BY MONTH 
 # =============================================================================
 
 library(purrr)
@@ -127,7 +126,7 @@ corrplot(
 
 
 # =============================================================================
-# 4. WITHIN-MONTH INTERANNUAL VARIANCE
+# WITHIN-MONTH INTERANNUAL VARIANCE
 # =============================================================================
 # For each covariate, compute variance within each calendar month across years.
 # High variance = more interannual signal available for modeling.
@@ -153,42 +152,7 @@ incidents %>%
 
 
 # =============================================================================
-# 6. CHECK COVARIATE DISTRIBUTIONS
-# =============================================================================
-# Assess skew in raw covariates — heavily skewed predictors can reduce model
-# sensitivity. Note: normality of covariates is NOT required for GLMMs, but
-# extreme skew or outliers can affect leverage.
-
-# Raw distributions
-incidents %>%
-  dplyr::select(precip_4_12, flow_4_12, temp_4_12, visitors,
-                N30_CHRYSOLEPIS, N30_KELLOGGII) %>%
-  pivot_longer(everything(), names_to = "covariate", values_to = "value") %>%
-  ggplot(aes(x = value)) +
-  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
-  facet_wrap(~ covariate, scales = "free") +
-  theme_minimal() +
-  labs(title = "Raw covariate distributions")
-
-# Log1p-transformed distributions for comparison
-# log1p() = log(x + 1), handles zeros safely
-incidents %>%
-  dplyr::select(precip_4_12, flow_4_12, temp_4_12, visitors,
-                N30_CHRYSOLEPIS, N30_KELLOGGII) %>%
-  mutate(across(everything(), ~ log1p(.x))) %>%
-  pivot_longer(everything(), names_to = "covariate", values_to = "value") %>%
-  ggplot(aes(x = value)) +
-  geom_histogram(bins = 30, fill = "darkorange", color = "white") +
-  facet_wrap(~ covariate, scales = "free") +
-  theme_minimal() +
-  labs(title = "Log1p-transformed covariates")
-
-# Decision: no transformation applied. VIFs were clean and DHARMa residuals
-# acceptable. N30 variables have structural zeros (acorns only present Sept-Nov)
-# that log transformation cannot address.
-
-# =============================================================================
-# 7. BUILD CYCLIC SEASONAL SPLINE FOR GLMMTMB
+# BUILD CYCLIC SEASONAL SPLINE FOR GLMMTMB
 # =============================================================================
 # glmmTMB does not support s() terms directly, so we manually construct a
 # cyclic cubic spline basis using mgcv::smoothCon() and add the basis columns
@@ -216,7 +180,7 @@ incidents <- incidents[order(incidents$Month_Year), ]
 incidents$time <- seq_len(nrow(incidents))
 
 # =============================================================================
-# 8. AIC GRID SEARCH: LAG WINDOW SELECTION
+# AIC GRID SEARCH: LAG WINDOW SELECTION
 # =============================================================================
 # Fit all combinations of precipitation, flow, and temperature lag windows.
 # Each model includes the same fixed structure (spline + AR1 + acorn + visitors
@@ -376,7 +340,9 @@ all_window_results %>%
   mutate(delta_aic = round(aic_value - min(aic_value, na.rm = TRUE), 2)) %>%
   dplyr::select(env_vars_included, n_env_vars, aic_value, delta_aic)
 
-#MODEL
+# =============================================================================
+# Model
+# =============================================================================
 full_gam <- glmmTMB(
   
   total_incidents ~
@@ -426,79 +392,15 @@ testTemporalAutocorrelation(sim_res, time = incidents$time)
 plotResiduals(sim_res, incidents$time) # significantly deviant
 acf(residuals(sim_res))
 
-# =============================================================================
-# 9. COLLINEARITY CHECKS FOR FINAL COVARIATE SET
-# =============================================================================
-
-# --- 9a. Concurvity (GAM equivalent of VIF) ---
-# Fit a parallel GAM in mgcv for diagnostic purposes only (not the final model).
-# Concurvity near 1 indicates a smooth term is nearly redundant given others.
-
-gam_check <- gam(
-  total_incidents ~
-    s(month_of_year, bs = "cc", k = 6) +
-    precip_4_12_scaled +
-    flow_4_12_scaled +
-    temp_4_12_scaled +
-    visitors_scaled +
-    N30_CHRYSOLEPIS_scaled +
-    N30_KELLOGGII_scaled +
-    offset(log(days_month)),
-  family = nb(),
-  data   = incidents
-)
-
-gam.check(gam_check)
-
-concurvity(gam_check, full = TRUE)   # overall concurvity per term
-concurvity(gam_check, full = FALSE)  # pairwise between terms # there is no pairwise concurvity between model components
-
-# --- 9b. VIF without spline terms ---
-# VIF on the parametric covariates only (excluding spline basis columns).
-# This avoids artificial inflation from the seasonal basis functions and
-# isolates collinearity among the covariates of interest.
-# Thresholds: <3 = fine, 3-5 = moderate, >5 = concerning, >10 = serious
-
-vif_model_nospline <- lm(
-  total_incidents ~
-    precip_4_12_scaled +
-    flow_4_12_scaled +
-    temp_4_12_scaled +
-    visitors_scaled +
-    N30_CHRYSOLEPIS_scaled +
-    N30_KELLOGGII_scaled,
-  data = incidents
-)
-
-vif(vif_model_nospline) # all good 
-
-
-# =============================================================================
-# 11. DIAGNOSTICS ON FINAL MODEL (model_zi_spline)
-# =============================================================================
-
-sim_res <- simulateResiduals(model_zi_spline, n = 1000)
-
-# QQ plot and residual vs. predicted
-plot(sim_res)
-
-# Check for overdispersion (should be non-significant)
-testDispersion(sim_res)
-
-# Check for residual temporal autocorrelation
-# AR1 term handles lag-1; minor spikes at lags 2-4 may remain but are acceptable.
-# AR2 is not natively supported in glmmTMB.
-testTemporalAutocorrelation(sim_res, time = incidents$time)
-
 # Check residuals against individual predictors to spot remaining patterns
 plotResiduals(sim_res, incidents$Month)
 plotResiduals(sim_res, incidents$Year) #2010 and 2019 signficiantly differ
 
 # =============================================================================
-# 12. OBSERVED VS. PREDICTED
+# OBSERVED VS. PREDICTED
 # =============================================================================
 
-incidents$predicted <- predict(model_zi_spline, type = "response")
+incidents$predicted <- predict(full_gam, type = "response")
 
 ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
   geom_line(aes(y = total_incidents, color = "Observed"), alpha = 0.6) +
@@ -517,35 +419,11 @@ ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
   theme_minimal()
 
 # =============================================================================
-# 13. Look at coefficient estimates
+# Look at coefficient estimates
 # =============================================================================
-# The model!
-fit <- glmmTMB(
-  
-  total_incidents ~
-    
-    # covariates of interest
-    precip_prior_scaled +
-    visitors_scaled +
-    acorn_total_scaled +
-    
-    # month basis functions
-    s_month_1 + s_month_2 + s_month_3 + s_month_4 +
-    
-    # autoregressive term
-    ar1(time + 0 | 1),
-  
-  # zero-inflation formula
-  ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
-  
-  family = nbinom2,
-  data = scaled_global_data
-  
-)
-
 
 cond_eff <- broom.mixed::tidy(
-  fit,
+  full_gam,
   effects = "fixed",
   conf.int = TRUE
 )  %>%
