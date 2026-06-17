@@ -193,6 +193,8 @@ incidents %>%
 
 # 0s in winter months (maybe the seasonal spline isn't this best for this then since only 1 part of year)
 
+# could consider doing this: sin(2*pi*month_of_year/12) + cos(2*pi*month_of_year/12), but for now will match the other spline structure
+
 # =============================================================================
 # COMBINED GRID SEARCH: PER-VARIABLE LAG WINDOW × INCLUSION
 # Each of precip, flow, and temp independently selects its own lag window
