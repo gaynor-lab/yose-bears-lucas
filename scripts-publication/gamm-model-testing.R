@@ -16,6 +16,7 @@ library(readr)
 library(car)
 library(lubridate)
 library(broom.mixed)
+library(corrplot)
 
 
 # =============================================================================
@@ -84,9 +85,6 @@ incidents %>%
 # COVARIATE CORRELATION GROUPED BY MONTH 
 # =============================================================================
 
-library(purrr)
-library(corrplot)
-
 # Select relevant scaled variables
 scaled_vars <- incidents %>%
   dplyr::select(evi_mean_scaled, N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_4_12_scaled, flow_4_12_scaled, temp_4_12_scaled) %>%
@@ -135,7 +133,7 @@ incidents %>%
   dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -contains("month_of_year"), -contains("time"), -ends_with("_scaled")) %>%
   group_by(Month) %>%
   summarise(across(where(is.numeric), ~ var(.x, na.rm = TRUE))) %>%
-  pivot_longer(-Month, names_to = "covariate", values_to = "variance") %>%
+  tidyr::pivot_longer(-Month, names_to = "covariate", values_to = "variance") %>%
   arrange(covariate, Month) %>%
   print(n = 216)
 
@@ -143,7 +141,7 @@ incidents %>%
 # Lines with high spread = high interannual variability within that month
 incidents %>%
   dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -contains("month_of_year"), -contains("time"), -ends_with("_scaled")) %>%
-  pivot_longer(c(-Month, -Year), names_to = "covariate", values_to = "value") %>%
+  tidyr::pivot_longer(c(-Month, -Year), names_to = "covariate", values_to = "value") %>%
   ggplot(aes(x = Year, y = value, group = Month, color = Month)) +
   geom_line() +
   facet_wrap(~ covariate, scales = "free_y") +
@@ -180,98 +178,71 @@ incidents <- incidents[order(incidents$Month_Year), ]
 incidents$time <- seq_len(nrow(incidents))
 
 # =============================================================================
-# AIC GRID SEARCH: LAG WINDOW SELECTION
+# Assess zero-inflation structure
 # =============================================================================
-# Fit all combinations of precipitation, flow, and temperature lag windows.
-# Each model includes the same fixed structure (spline + AR1 + acorn + visitors
-# + offset) and cyclic spline zero-inflation formula.
-# 4 precip × 4 flow × 4 temp = 64 models total. Select by lowest AIC.
+incidents %>%
+  ggplot(aes(x = date, y = number_incidents)) +
+  geom_line(color = "grey40") +
+  geom_point(aes(color = Month), size = 1.8) +
+  labs(
+    title = "Monthly bear incidents, Yosemite",
+    x = "Date", y = "Number of incidents"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
 
-precip_candidates <- c("precip_total_inch", "precip_2_4", "precip_3_7", "precip_4_12")
-flow_candidates   <- c("avg_flow", "flow_2_4", "flow_3_7", "flow_4_12")
-temp_candidates   <- c("avg_tmp_f", "temp_2_4", "temp_3_7", "temp_4_12")
+# 0s in winter months (maybe the seasonal spline isn't this best for this then since only 1 part of year)
 
-fit_lag_model <- function(precip_var, flow_var, temp_var) {
-  
-  f <- as.formula(paste(
-    "number_incidents ~",
-    "offset(log(days_month)) +",
-    paste0(precip_var, "_scaled"), "+",
-    paste0(flow_var,   "_scaled"), "+",
-    paste0(temp_var,   "_scaled"), "+",
-    "visitors_scaled +",
-    "N30_CHRYSOLEPIS_scaled + N30_KELLOGGII_scaled +",
-    "s_month_1 + s_month_2 + s_month_3 + s_month_4 +",
-    "ar1(time + 0 | 1)"
-  ))
-  
-  fit <- tryCatch(
-    glmmTMB(
-      f,
-      ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
-      family    = nbinom2,
-      data      = incidents
-    ),
-    error = function(e) NULL
-  )
-  
-  if (is.null(fit)) return(NULL)
-  
-  data.frame(
-    precip    = precip_var,
-    flow      = flow_var,
-    temp      = temp_var,
-    aic_value = AIC(fit)
-  )
-}
+# =============================================================================
+# COMBINED GRID SEARCH: PER-VARIABLE LAG WINDOW × INCLUSION
+# Each of precip, flow, and temp independently selects its own lag window
+# (3-7 or 4-12) or is excluded entirely — they do NOT have to share a window.
+# EVI independently selects include/exclude (no lag variant).
+# Fixed across all models: both acorn species, visitors, month splines,
+# AR1 autocorrelation, offset, zero-inflation formula.
+# =============================================================================
 
-lag_grid <- expand.grid(
-  precip_var = precip_candidates,
-  flow_var   = flow_candidates,
-  temp_var   = temp_candidates,
+# Candidate scaled columns for each lag-able variable.
+# "none" means the variable is excluded from the model entirely.
+precip_options <- c(lag_3_7 = "precip_3_7_scaled", lag_4_12 = "precip_4_12_scaled", none = NA)
+flow_options   <- c(lag_3_7 = "flow_3_7_scaled",   lag_4_12 = "flow_4_12_scaled",   none = NA)
+temp_options   <- c(lag_3_7 = "temp_3_7_scaled",   lag_4_12 = "temp_4_12_scaled",   none = NA)
+
+# Terms common to every model in the grid: not toggled, not lag-windowed.
+fixed_terms <- c(
+  "offset(log(days_month))",
+  "visitors_scaled",
+  "N30_CHRYSOLEPIS_scaled",
+  "N30_KELLOGGII_scaled",
+  "s_month_1", "s_month_2", "s_month_3", "s_month_4",
+  "ar1(time + 0 | 1)"
+)
+
+# Zero-inflation formula: also fixed across every model in the grid.
+fixed_ziformula <- ~ s_month_1 + s_month_2 + s_month_3 + s_month_4
+
+# Full grid: every combination of precip window/exclusion, flow window/
+# exclusion, temp window/exclusion, and EVI include/exclude.
+# 3 x 3 x 3 x 2 = 54 models total.
+env_combos <- expand.grid(
+  precip_choice = names(precip_options),
+  flow_choice   = names(flow_options),
+  temp_choice   = names(temp_options),
+  evi           = c(TRUE, FALSE),
   stringsAsFactors = FALSE
 )
 
-aic_results <- pmap_dfr(
-  list(lag_grid$precip_var, lag_grid$flow_var, lag_grid$temp_var),
-  fit_lag_model
-)
-
-# Best combinations ranked by AIC
-aic_results[order(aic_results$aic_value), ]
-
-# =============================================================================
-# AIC COMPARISON: BEST ENV COMBO ACROSS LAG WINDOWS
-# Fixed across all models: both acorn species, visitors, month splines,
-# AR1 autocorrelation, offset
-# =============================================================================
-
-# Define lag windows
-lag_windows <- list(
-  lag_current = list(
-    precip = "precip_total_inch_scaled",  # contemporaneous
-    flow   = "avg_flow_scaled",
-    temp   = "avg_tmp_f_scaled"
-  ),
-  lag_3_7 = list(
-    precip = "precip_3_7_scaled",
-    flow   = "flow_3_7_scaled",
-    temp   = "temp_3_7_scaled"
-  ),
-  lag_4_12 = list(
-    precip = "precip_4_12_scaled",
-    flow   = "flow_4_12_scaled",
-    temp   = "temp_4_12_scaled"
-  )
-)
-
-fit_env_combo_window <- function(use_evi, use_flow, use_temp, 
-                                 use_precip, window_vars, window_name) {
+fit_env_combo <- function(precip_choice, flow_choice, temp_choice, evi) {
+  
+  precip_var <- precip_options[[precip_choice]]
+  flow_var   <- flow_options[[flow_choice]]
+  temp_var   <- temp_options[[temp_choice]]
+  
   env_vars <- c(
-    if (use_evi)    "evi_mean_scaled",
-    if (use_flow)   window_vars$flow,
-    if (use_temp)   window_vars$temp,
-    if (use_precip) window_vars$precip
+    if (evi) "evi_mean_scaled",
+    if (!is.na(precip_var)) precip_var,
+    if (!is.na(flow_var))   flow_var,
+    if (!is.na(temp_var))   temp_var
   )
   
   all_terms <- c(fixed_terms, env_vars)
@@ -284,61 +255,74 @@ fit_env_combo_window <- function(use_evi, use_flow, use_temp,
   fit <- tryCatch(
     glmmTMB(
       f,
-      ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
+      ziformula = fixed_ziformula,
       family    = nbinom2,
       data      = incidents
     ),
     error = function(e) NULL
   )
   
+  env_vars_included <- if (length(env_vars) == 0) "none" else paste(env_vars, collapse = " + ")
+  
   data.frame(
-    window    = window_name,
-    evi       = use_evi,
-    flow      = use_flow,
-    temp      = use_temp,
-    precip    = use_precip,
-    env_vars_included = ifelse(
-      length(env_vars) == 0, "none",
-      paste(c("EVI",
-              paste0("flow_", window_name),
-              paste0("temp_", window_name),
-              paste0("precip_", window_name))[c(use_evi, use_flow, use_temp, use_precip)],
-            collapse = " + ")
-    ),
-    aic_value  = if (!is.null(fit)) AIC(fit) else NA,
-    n_env_vars = length(env_vars)
+    precip_window = precip_choice,
+    flow_window   = flow_choice,
+    temp_window   = temp_choice,
+    evi           = evi,
+    env_vars_included = env_vars_included,
+    aic_value     = if (!is.null(fit)) AIC(fit) else NA,
+    converged     = !is.null(fit),
+    n_env_vars    = length(env_vars)
   )
 }
 
-# Run 16-combo grid for each lag window
-all_window_results <- map_dfr(names(lag_windows), function(wname) {
-  pmap_dfr(
-    list(env_combos$evi, env_combos$flow,
-         env_combos$temp, env_combos$precip),
-    fit_env_combo_window,
-    window_vars  = lag_windows[[wname]],
-    window_name  = wname
-  )
-}) %>% arrange(aic_value)
+all_window_results <- pmap_dfr(
+  env_combos %>%
+    dplyr::select(precip_choice, flow_choice, temp_choice, evi),
+  fit_env_combo
+) %>%
+  arrange(aic_value)
 
-# Best model per lag window
-best_per_window <- all_window_results %>%
-  group_by(window) %>%
-  slice_min(aic_value, n = 1) %>%
-  ungroup() %>%
-  arrange(aic_value) %>%
-  mutate(delta_aic = round(aic_value - min(aic_value, na.rm = TRUE), 2),
-         aic_value = round(aic_value, 2))
+# ---------------------------------
+# INSPECT RESULTS
+# ---------------------------------
 
-print(best_per_window[, c("window", "env_vars_included", 
-                          "aic_value", "delta_aic")])
-
-# Full results for a specific window if you want to dig in
+# Top 10 models overall
 all_window_results %>%
-  filter(window == "lag_4_12") %>%
+  filter(converged) %>%
   arrange(aic_value) %>%
-  mutate(delta_aic = round(aic_value - min(aic_value, na.rm = TRUE), 2)) %>%
-  dplyr::select(env_vars_included, n_env_vars, aic_value, delta_aic)
+  head(10) %>%
+  print()
+
+# Best window choice for each variable, marginalized across everything else.
+# Useful for asking "does precip prefer 3-7 or 4-12, regardless of what
+# flow/temp/EVI are doing" — i.e. is a variable's preferred window stable,
+# or does it depend heavily on what else is in the model.
+all_window_results %>%
+  filter(converged, precip_window != "none") %>%
+  group_by(precip_window) %>%
+  summarise(mean_aic = mean(aic_value), min_aic = min(aic_value), n = n())
+
+all_window_results %>%
+  filter(converged, flow_window != "none") %>%
+  group_by(flow_window) %>%
+  summarise(mean_aic = mean(aic_value), min_aic = min(aic_value), n = n())
+
+all_window_results %>%
+  filter(converged, temp_window != "none") %>%
+  group_by(temp_window) %>%
+  summarise(mean_aic = mean(aic_value), min_aic = min(aic_value), n = n())
+
+# Flag any combos that failed to converge — these silently drop out of the
+# AIC ranking, so don't mistake "didn't fit" for "fit poorly"
+all_window_results %>%
+  filter(!converged) %>%
+  dplyr::select(precip_window, flow_window, temp_window, evi)
+
+# Best overall model, for a sanity check before refitting standalone
+best_row <- all_window_results %>% filter(converged) %>% slice_min(aic_value, n = 1)
+cat("Best model:", best_row$env_vars_included,
+    "| AIC =", round(best_row$aic_value, 1), "\n")
 
 # =============================================================================
 # Model
@@ -385,7 +369,7 @@ testUniformity(sim_res)
 testDispersion(sim_res) # mild overdispersion but not signficant 
 
 # zero-inflation
-testZeroInflation(sim_res)
+testZeroInflation(sim_res) 
 
 # temporal autocorrelation
 testTemporalAutocorrelation(sim_res, time = incidents$time)
@@ -394,7 +378,7 @@ acf(residuals(sim_res))
 
 # Check residuals against individual predictors to spot remaining patterns
 plotResiduals(sim_res, incidents$Month)
-plotResiduals(sim_res, incidents$Year) #2010 and 2019 signficiantly differ
+plotResiduals(sim_res, incidents$Year) #2010, 2017, 2019 signficiantly differ
 
 # =============================================================================
 # OBSERVED VS. PREDICTED
