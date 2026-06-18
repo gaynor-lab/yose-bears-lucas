@@ -3,7 +3,7 @@ library(dplyr)
 library(tidyr)
 library(readr)
 library(ggplot2)
-
+library(lubridate)
 
 monthly_incidents_all <- read_csv("data_cleaned/monthly_incidents_all.csv")
 
@@ -176,33 +176,28 @@ acorn_wide <- acorn_data %>%
 # Phenology multipliers (proportion of September survey value available)
 # Applied to raw acorn counts from the September survey.
 #
-# Canyon live oak (CHRYSOLEPIS):
-#   Sept = 1.0 (survey baseline), Oct slightly increases (~1.1, acorns
-#   maturing on tree), Nov drops to ~0.5, Dec drops to ~0.25 
-#
-# California black oak (KELLOGGII):
-#   Sept = 1.0 (survey baseline), Oct ~0.5 (drops ~half by first month,
-#   faster abscission than live oak), Nov ~0.25, Dec ~0.1
-#
-# All other months: hard zero (acorns not available)
+# All other months than 9-12: hard zero (acorns not available)
 #
 # NOTE: These multipliers are literature-derived (Walt's Hastings study).
 # Walt's study is in coastal california, so phenology is likely different with elevation; 
 # but we also looked at https://research.fs.usda.gov/download/treesearch/1548.pdf for tree life history and this matches up 
+
+# Methods: I extracted the raw data for September-November (rest of months were 0) Fig 1 (10.3120/0024-9637-61.2.151) using WebPlotDigitizer for both canyon live oak and california black oak
+# then i made a "multiplier" system by dividing each month by the starting value in September per tree species. 
 # ---------------------------------------------------------------------------
 
 acorn_phenology <- list(
   CHRYSOLEPIS = c(
     "9"  = 1.00,   # Sept: survey month baseline
-    "10" = 1.10,   # Oct:  slight increase as acorns mature and drops
-    "11" = 0.50,   # Nov:  ~half remaining
-    "12" = 0.25    # Dec:  ~quarter remaining 
+    "10" = 1.18,   # Oct:  slight increase as acorns mature and drops
+    "11" = 0.36,   # Nov:  ~half remaining
+    "12" = 0.05    # Dec:  near depletion
   ),
   KELLOGGII = c(
     "9"  = 1.00,   # Sept: survey month baseline
-    "10" = 0.50,   # Oct:  fast drop (~half), black oak drops quickly
-    "11" = 0.25,   # Nov:  quarter remaining
-    "12" = 0.10    # Dec:  near depletion
+    "10" = 0.60,   # Oct:  fast drop (~half), black oak drops quickly
+    "11" = 0.21,   # Nov:  quarter remaining
+    "12" = 0.03    # Dec:  near depletion
   )
 )
 
@@ -220,7 +215,7 @@ apply_phenology <- function(raw_value, month_num, species_key) {
 monthly_incidents_all <- monthly_incidents_all %>%
   left_join(acorn_wide, by = c("Year" = "YEAR")) %>%
   mutate(
-    Month_Num = month(ym(Month_Year)),
+    Month_Num = lubridate::month(ym(Month_Year)),
     N30_CHRYSOLEPIS = mapply(apply_phenology, N30_CHRYSOLEPIS, Month_Num, "CHRYSOLEPIS"),
     N30_KELLOGGII   = mapply(apply_phenology, N30_KELLOGGII,   Month_Num, "KELLOGGII")
   ) %>%
@@ -385,7 +380,7 @@ write_csv(lagged_data, "data_cleaned/monthly_incidents_covar_cleaned.csv")
 
 # Check NA's
 data_na <- lagged_data %>%
-  filter(if_any(everything(), is.na))
+  filter(if_any(everything(), is.na)) #none!
 
 
 #---------------------------------------------------------
