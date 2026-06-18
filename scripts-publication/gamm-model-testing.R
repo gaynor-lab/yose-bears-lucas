@@ -330,8 +330,6 @@ cat("Best model:", best_row$env_vars_included,
 # Model
 # =============================================================================
 
-incidents$time_cont <- seq_len(nrow(incidents))
-
 full_gam <- glmmTMB(
   
   total_incidents ~
@@ -349,7 +347,7 @@ full_gam <- glmmTMB(
     s_month_1 + s_month_2 + s_month_3 + s_month_4 +
     
     # add smooth term for time
-   # poly(time_cont, 2) +
+    poly(time, 2) +
     
     # autoregressive term
     ar1(time + 0 | 1),
