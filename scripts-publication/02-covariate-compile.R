@@ -279,99 +279,72 @@ monthly_incidents_all <- monthly_incidents_all %>%
 # Based on CCF in code chunk below 
 #---------------------------------------------------------
 
-lagged_covariates <- mesonet_long %>%
+# ── Helper function: build a single lagged-window covariate ──────────────────
+# agg_fun should be `sum` (precip) or `mean` (flow, temp)
+make_lag_window <- function(df, var, start, end, agg_fun = mean) {
+  lag_list <- lapply(start:end, function(l) dplyr::lag(df[[var]], l))
+  mat <- do.call(cbind, lag_list)
+  apply(mat, 1, agg_fun, na.rm = TRUE)
+}
+
+# ── Define all lag windows once, reused across variables ─────────────────────
+# Start values range 2-4 months (short-term onset), end values extend
+# progressively further out to capture short- through long-term effects.
+# Starting/ending values can repeat across windows (e.g., 2_6 and 3_6).
+
+windows <- list(
+  "1_3"   = c(1, 3),
+  "1_6"   = c(1, 6),
+  "1_9"   = c(1, 9),
+  "1_12"   = c(1, 12),
+  "2_4"   = c(2, 4),
+  "2_6"   = c(2, 6),
+  "2_9"   = c(2, 9),
+  "2_12"  = c(2, 12),
+  "3_5"   = c(3, 5),
+  "3_6"   = c(3, 6),
+  "3_9"   = c(3, 9),
+  "3_12"  = c(3, 12),
+  "4_6"   = c(4, 6),
+  "4_9"   = c(4, 9),
+  "4_12"  = c(4, 12)
+)
+
+# ── Variables to lag, with their aggregation function ─────────────────────────
+vars <- list(
+  precip = list(col = "precip_total_inch", fun = sum),
+  flow   = list(col = "avg_flow",          fun = mean),
+  temp   = list(col = "avg_tmp_f",         fun = mean)
+)
+
+# ── Build the joined base dataframe first ─────────────────────────────────────
+lagged_base <- mesonet_long %>%
   full_join(merced, by = "Month_Year") %>%
-  arrange(Month_Year) %>%
-  mutate(
+  arrange(Month_Year)
+
+# ── Generate all lagged covariates programmatically ───────────────────────────
+lagged_covariates <- lagged_base
+
+for (vname in names(vars)) {
+  col     <- vars[[vname]]$col
+  agg_fun <- vars[[vname]]$fun
+  
+  for (wname in names(windows)) {
+    start <- windows[[wname]][1]
+    end   <- windows[[wname]][2]
+    new_col <- paste0(vname, "_", wname)
     
-    # PRECIPITATION WINDOWS
-    precip_2_4 = rowSums(cbind(
-      lag(precip_total_inch, 2),
-      lag(precip_total_inch, 3),
-      lag(precip_total_inch, 4)
-    ), na.rm = TRUE),
-    
-    precip_3_7 = rowSums(cbind(
-      lag(precip_total_inch, 3),
-      lag(precip_total_inch, 4),
-      lag(precip_total_inch, 5),
-      lag(precip_total_inch, 6),
-      lag(precip_total_inch, 7)
-    ), na.rm = TRUE),
-    
-    precip_4_12 = rowSums(cbind(
-      lag(precip_total_inch, 4),
-      lag(precip_total_inch, 5),
-      lag(precip_total_inch, 6),
-      lag(precip_total_inch, 7),
-      lag(precip_total_inch, 8),
-      lag(precip_total_inch, 9),
-      lag(precip_total_inch, 10),
-      lag(precip_total_inch, 11),
-      lag(precip_total_inch, 12)
-    ), na.rm = TRUE),
-    
-    # STREAMFLOW WINDOWS
-    flow_2_4 = rowMeans(cbind(
-      lag(avg_flow, 2),
-      lag(avg_flow, 3),
-      lag(avg_flow, 4)
-    ), na.rm = TRUE),
-    
-    flow_3_7 = rowMeans(cbind(
-      lag(avg_flow, 3),
-      lag(avg_flow, 4),
-      lag(avg_flow, 5),
-      lag(avg_flow, 6),
-      lag(avg_flow, 7)
-    ), na.rm = TRUE),
-    
-    flow_4_12 = rowMeans(cbind(
-      lag(avg_flow, 4),
-      lag(avg_flow, 5),
-      lag(avg_flow, 6),
-      lag(avg_flow, 7),
-      lag(avg_flow, 8),
-      lag(avg_flow, 9),
-      lag(avg_flow, 10),
-      lag(avg_flow, 11),
-      lag(avg_flow, 12)
-    ), na.rm = TRUE),
-    
-    # TEMPERATURE WINDOWS
-    temp_2_4 = rowMeans(cbind(
-      lag(avg_tmp_f, 2),
-      lag(avg_tmp_f, 3),
-      lag(avg_tmp_f, 4)
-    ), na.rm = TRUE),
-    
-    temp_3_7 = rowMeans(cbind(
-      lag(avg_tmp_f, 3),
-      lag(avg_tmp_f, 4),
-      lag(avg_tmp_f, 5),
-      lag(avg_tmp_f, 6),
-      lag(avg_tmp_f, 7)
-    ), na.rm = TRUE),
-    
-    temp_4_12 = rowMeans(cbind(
-      lag(avg_tmp_f, 4),
-      lag(avg_tmp_f, 5),
-      lag(avg_tmp_f, 6),
-      lag(avg_tmp_f, 7),
-      lag(avg_tmp_f, 8),
-      lag(avg_tmp_f, 9),
-      lag(avg_tmp_f, 10),
-      lag(avg_tmp_f, 11),
-      lag(avg_tmp_f, 12)
-    ), na.rm = TRUE)
-    
-  ) %>%
-  dplyr::select(
-    Month_Year,
-    precip_2_4, precip_3_7, precip_4_12,
-    flow_2_4, flow_3_7, flow_4_12,
-    temp_2_4, temp_3_7, temp_4_12
-  ) 
+    lagged_covariates[[new_col]] <- make_lag_window(
+      lagged_base, col, start, end, agg_fun
+    )
+  }
+}
+
+# ── Keep only Month_Year + generated lag columns ──────────────────────────────
+lag_cols <- unlist(lapply(names(vars), function(v) paste0(v, "_", names(windows))))
+
+lagged_covariates <- lagged_covariates %>%
+  dplyr::select(Month_Year, all_of(lag_cols))
 
 lagged_data <- left_join(monthly_incidents_all, lagged_covariates)
 
@@ -396,10 +369,10 @@ ccf_df <- monthly_incidents_all %>%
   filter(!is.na(number_incidents), !is.na(precip_total_inch))
 
 ccf(ccf_df$precip_total_inch, ccf_df$number_incidents, 
-    lag.max = 12, main = "Precip vs. Incidents CCF")
+    lag.max = 12, main = "Precip vs. Incidents CCF") #4-7
 
 ccf(ccf_df$avg_tmp_f, ccf_df$number_incidents, 
-    lag.max = 12, main = "Temperature vs. Incidents CCF")
+    lag.max = 12, main = "Temperature vs. Incidents CCF") #4-8
 
 ccf(ccf_df$avg_flow, ccf_df$number_incidents, 
     lag.max = 12, main = "Flow vs. Incidents CCF")

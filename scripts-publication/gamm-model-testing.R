@@ -17,7 +17,7 @@ library(car)
 library(lubridate)
 library(broom.mixed)
 library(tidyr)
-
+library(stringr)
 
 # =============================================================================
 # LOAD DATA AND REMOVE COVID CLOSURE MONTHS
@@ -58,6 +58,8 @@ incidents <- incidents %>%
 
 # arrange by time
 incidents <- incidents[order(incidents$Month_Year), ]
+
+colnames(incidents) # checking
 
 # =============================================================================
 # COVARIATE COLLINEARITY: CORRELATION MATRIX
@@ -196,135 +198,197 @@ incidents %>%
 # could consider doing this: sin(2*pi*month_of_year/12) + cos(2*pi*month_of_year/12), but for now will match the other spline structure
 
 # =============================================================================
-# COMBINED GRID SEARCH: PER-VARIABLE LAG WINDOW × INCLUSION
-# Each of precip, flow, and temp independently selects its own lag window
-# (3-7 or 4-12) or is excluded entirely — they do NOT have to share a window.
-# EVI independently selects include/exclude (no lag variant).
-# Fixed across all models: both acorn species, visitors, month splines,
-# AR1 autocorrelation, offset, zero-inflation formula.
+# AIC COMPARISON
+# STAGE 1: PER-VARIABLE LAG WINDOW SCREENING (unchanged from before)
 # =============================================================================
 
-# Candidate scaled columns for each lag-able variable.
-# "none" means the variable is excluded from the model entirely.
-precip_options <- c(lag_3_7 = "precip_3_7_scaled", lag_4_12 = "precip_4_12_scaled", none = NA)
-flow_options   <- c(lag_3_7 = "flow_3_7_scaled",   lag_4_12 = "flow_4_12_scaled",   none = NA)
-temp_options   <- c(lag_3_7 = "temp_3_7_scaled",   lag_4_12 = "temp_4_12_scaled",   none = NA)
+windows <- list(
+  "1_3"   = c(1, 3),
+  "1_6"   = c(1, 6),
+  "1_9"   = c(1, 9),
+  "1_12"   = c(1, 12),
+  "2_4"   = c(2, 4),
+  "2_6"   = c(2, 6),
+  "2_9"   = c(2, 9),
+  "2_12"  = c(2, 12),
+  "3_5"   = c(3, 5),
+  "3_6"   = c(3, 6),
+  "3_9"   = c(3, 9),
+  "3_12"  = c(3, 12),
+  "4_6"   = c(4, 6),
+  "4_9"   = c(4, 9),
+  "4_12"  = c(4, 12)
+)
+window_names <- names(windows)
 
-# Terms common to every model in the grid: not toggled, not lag-windowed.
 fixed_terms <- c(
   "offset(log(days_month))",
   "visitors_scaled",
   "N30_CHRYSOLEPIS_scaled",
   "N30_KELLOGGII_scaled",
   "s_month_1", "s_month_2", "s_month_3", "s_month_4",
+  "poly(time, 2)",
   "ar1(time + 0 | 1)"
 )
-
-# Zero-inflation formula: also fixed across every model in the grid.
 fixed_ziformula <- ~ s_month_1 + s_month_2 + s_month_3 + s_month_4
 
-# Full grid: every combination of precip window/exclusion, flow window/
-# exclusion, temp window/exclusion, and EVI include/exclude.
-# 3 x 3 x 3 x 2 = 54 models total.
-env_combos <- expand.grid(
-  precip_choice = names(precip_options),
-  flow_choice   = names(flow_options),
-  temp_choice   = names(temp_options),
-  evi           = c(TRUE, FALSE),
+fit_model <- function(env_vars) {
+  all_terms <- c(fixed_terms, env_vars)
+  f <- as.formula(paste("total_incidents ~", paste(all_terms, collapse = " + ")))
+  tryCatch(
+    glmmTMB(f, ziformula = fixed_ziformula, family = nbinom2, data = incidents),
+    error = function(e) NULL
+  )
+}
+
+screen_variable <- function(var_prefix) {
+  choices <- c(window_names, "none")
+  map_dfr(choices, function(w) {
+    env_var <- if (w == "none") NULL else paste0(var_prefix, "_", w, "_scaled")
+    fit <- fit_model(env_var)
+    data.frame(
+      variable  = var_prefix,
+      window    = w,
+      aic_value = if (!is.null(fit)) AIC(fit) else NA,
+      converged = !is.null(fit)
+    )
+  }) %>% arrange(aic_value)
+}
+
+precip_screen <- screen_variable("precip")
+flow_screen   <- screen_variable("flow")
+temp_screen   <- screen_variable("temp")
+
+# =============================================================================
+# STAGE 2: COMBO GRID -- force "none" in for every variable so 1-var,
+# 2-var, and 3-var models are all represented, not just locally-competitive
+# windows from Stage 1.
+# =============================================================================
+
+top_n_per_var <- 3
+
+precip_finalists <- union(precip_screen %>% slice_min(aic_value, n = top_n_per_var) %>% pull(window), "none")
+flow_finalists   <- union(flow_screen   %>% slice_min(aic_value, n = top_n_per_var) %>% pull(window), "none")
+temp_finalists   <- union(temp_screen   %>% slice_min(aic_value, n = top_n_per_var) %>% pull(window), "none")
+
+combo_grid <- expand.grid(
+  precip_choice = precip_finalists,
+  flow_choice   = flow_finalists,
+  temp_choice   = temp_finalists,
   stringsAsFactors = FALSE
 )
 
-fit_env_combo <- function(precip_choice, flow_choice, temp_choice, evi) {
+fit_combo <- function(precip_choice, flow_choice, temp_choice) {
+  precip_var <- if (precip_choice == "none") NULL else paste0("precip_", precip_choice, "_scaled")
+  flow_var   <- if (flow_choice   == "none") NULL else paste0("flow_",   flow_choice,   "_scaled")
+  temp_var   <- if (temp_choice   == "none") NULL else paste0("temp_",   temp_choice,   "_scaled")
   
-  precip_var <- precip_options[[precip_choice]]
-  flow_var   <- flow_options[[flow_choice]]
-  temp_var   <- temp_options[[temp_choice]]
-  
-  env_vars <- c(
-    if (evi) "evi_mean_scaled",
-    if (!is.na(precip_var)) precip_var,
-    if (!is.na(flow_var))   flow_var,
-    if (!is.na(temp_var))   temp_var
-  )
-  
-  all_terms <- c(fixed_terms, env_vars)
-  
-  f <- as.formula(paste(
-    "number_incidents ~",
-    paste(all_terms, collapse = " + ")
-  ))
-  
-  fit <- tryCatch(
-    glmmTMB(
-      f,
-      ziformula = fixed_ziformula,
-      family    = nbinom2,
-      data      = incidents
-    ),
-    error = function(e) NULL
-  )
-  
-  env_vars_included <- if (length(env_vars) == 0) "none" else paste(env_vars, collapse = " + ")
+  env_vars <- c(precip_var, flow_var, temp_var)
+  fit <- fit_model(env_vars)
   
   data.frame(
     precip_window = precip_choice,
     flow_window   = flow_choice,
     temp_window   = temp_choice,
-    evi           = evi,
-    env_vars_included = env_vars_included,
-    aic_value     = if (!is.null(fit)) AIC(fit) else NA,
-    converged     = !is.null(fit),
-    n_env_vars    = length(env_vars)
+    precip_var = precip_var %||% "none",
+    flow_var   = flow_var   %||% "none",
+    temp_var   = temp_var   %||% "none",
+    env_vars_included = if (length(env_vars) == 0) "none" else paste(env_vars, collapse = " + "),
+    aic_value = if (!is.null(fit)) AIC(fit) else NA,
+    converged = !is.null(fit)
   )
 }
 
-all_window_results <- pmap_dfr(
-  env_combos %>%
-    dplyr::select(precip_choice, flow_choice, temp_choice, evi),
-  fit_env_combo
-) %>%
+# small helper since base R has no %||%
+`%||%` <- function(a, b) if (is.null(a)) b else a
+
+combo_results <- pmap_dfr(combo_grid, fit_combo) %>%
+  filter(converged) %>%
   arrange(aic_value)
 
-# ---------------------------------
-# INSPECT RESULTS
-# ---------------------------------
+# ---- TOP 20 combined models ----
+top20 <- combo_results %>% slice_min(aic_value, n = 20)
+print(top20)
 
-# Top 10 models overall
-all_window_results %>%
-  filter(converged) %>%
-  arrange(aic_value) %>%
-  head(10) %>%
-  print()
+# =============================================================================
+# STAGE 3: FOR EACH OF THE TOP 20, TEST EVI ADDED / REPLACING EACH VARIABLE
+# =============================================================================
 
-# Best window choice for each variable, marginalized across everything else.
-# Useful for asking "does precip prefer 3-7 or 4-12, regardless of what
-# flow/temp/EVI are doing" — i.e. is a variable's preferred window stable,
-# or does it depend heavily on what else is in the model.
-all_window_results %>%
-  filter(converged, precip_window != "none") %>%
-  group_by(precip_window) %>%
-  summarise(mean_aic = mean(aic_value), min_aic = min(aic_value), n = n())
+evi_var <- "evi_mean_scaled"
 
-all_window_results %>%
-  filter(converged, flow_window != "none") %>%
-  group_by(flow_window) %>%
-  summarise(mean_aic = mean(aic_value), min_aic = min(aic_value), n = n())
+build_evi_scenarios <- function(row) {
+  
+  base_vars <- c(row$precip_var, row$flow_var, row$temp_var)
+  base_vars <- base_vars[base_vars != "none"]
+  
+  scenarios <- list(
+    baseline = base_vars,                                  # no EVI, for reference
+    add_evi  = c(base_vars, evi_var)                        # EVI added on top
+  )
+  
+  # EVI replacing each base variable that's actually present in this model
+  if (row$precip_var != "none") {
+    scenarios[["evi_replaces_precip"]] <- c(setdiff(base_vars, row$precip_var), evi_var)
+  }
+  if (row$flow_var != "none") {
+    scenarios[["evi_replaces_flow"]] <- c(setdiff(base_vars, row$flow_var), evi_var)
+  }
+  if (row$temp_var != "none") {
+    scenarios[["evi_replaces_temp"]] <- c(setdiff(base_vars, row$temp_var), evi_var)
+  }
+  
+  scenarios
+}
 
-all_window_results %>%
-  filter(converged, temp_window != "none") %>%
-  group_by(temp_window) %>%
-  summarise(mean_aic = mean(aic_value), min_aic = min(aic_value), n = n())
+run_evi_for_row <- function(row_id, row) {
+  scenarios <- build_evi_scenarios(row)
+  
+  map_dfr(names(scenarios), function(label) {
+    env_vars <- scenarios[[label]]
+    fit <- fit_model(env_vars)
+    data.frame(
+      base_model_rank = row_id,
+      base_model      = row$env_vars_included,
+      scenario        = label,
+      env_vars_included = if (length(env_vars) == 0) "none" else paste(env_vars, collapse = " + "),
+      aic_value = if (!is.null(fit)) AIC(fit) else NA,
+      converged = !is.null(fit)
+    )
+  })
+}
 
-# Flag any combos that failed to converge — these silently drop out of the
-# AIC ranking, so don't mistake "didn't fit" for "fit poorly"
-all_window_results %>%
-  filter(!converged) %>%
-  dplyr::select(precip_window, flow_window, temp_window, evi)
+evi_comparison <- map2_dfr(
+  seq_len(nrow(top20)),
+  split(top20, seq_len(nrow(top20))),
+  run_evi_for_row
+)
 
-# Best overall model, for a sanity check before refitting standalone
-best_row <- all_window_results %>% filter(converged) %>% slice_min(aic_value, n = 1)
-cat("Best model:", best_row$env_vars_included,
-    "| AIC =", round(best_row$aic_value, 1), "\n")
+evi_comparison <- evi_comparison %>% filter(converged) %>% arrange(aic_value)
+
+# Full table: every scenario (baseline/add/replace-x) for every one of the
+# top 20 base models, sorted by AIC across the whole set
+#print(evi_comparison, n = 100)
+
+# Best result overall, regardless of which base model or EVI scenario it came from
+best_overall <- evi_comparison %>% slice_min(aic_value, n = 1)
+cat("\nBest overall model:\n")
+cat("  Base model rank:", best_overall$base_model_rank, "\n")
+cat("  Scenario:", best_overall$scenario, "\n")
+cat("  Vars:", best_overall$env_vars_included, "\n")
+cat("  AIC:", round(best_overall$aic_value, 1), "\n")
+
+# Summary: how does each scenario type perform on average across all 20
+# base models? Tells you whether EVI is generally helpful (add), generally
+# redundant (replace wins a lot), or generally not worth it (baseline wins)
+evi_comparison %>%
+  group_by(scenario) %>%
+  summarise(
+    mean_aic = mean(aic_value),
+    min_aic  = min(aic_value),
+    n_models = n()
+  ) %>%
+  arrange(mean_aic)
+
 
 # =============================================================================
 # Model
@@ -335,9 +399,9 @@ full_gam <- glmmTMB(
   total_incidents ~
     
     # covariates of interest
-    precip_4_12 +
-    flow_4_12 + 
-    temp_4_12 + 
+   # precip_2_9_scaled +
+    flow_4_12_scaled + 
+    temp_2_9_scaled + 
     visitors_scaled +
     N30_KELLOGGII_scaled +
     N30_CHRYSOLEPIS_scaled + 
@@ -372,7 +436,7 @@ plot(sim_res) # all good
 testUniformity(sim_res)
 
 # over/underdispersion
-testDispersion(sim_res) # mild overdispersion but not signficant 
+testDispersion(sim_res)  
 
 # zero-inflation
 testZeroInflation(sim_res) 
@@ -384,7 +448,7 @@ acf(residuals(sim_res))
 
 # Check residuals against individual predictors to spot remaining patterns
 plotResiduals(sim_res, incidents$Month)
-plotResiduals(sim_res, incidents$Year) #2010, 2017, 2019 signficiantly differ
+plotResiduals(sim_res, incidents$Year) 
 
 # =============================================================================
 # OBSERVED VS. PREDICTED
@@ -420,7 +484,9 @@ cond_eff <- broom.mixed::tidy(
   filter(!grepl("^s_month_", term))
 
 
-ggplot(cond_eff %>% filter(component == "cond"),
+ggplot(cond_eff %>% 
+         filter(component == "cond") %>% 
+         filter(!str_detect(term, "Intercept|poly\\(time")),
        aes(x = reorder(term, estimate), y = estimate)) +
   geom_point() +
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
