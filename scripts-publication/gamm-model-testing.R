@@ -680,3 +680,23 @@ plot(ggpredict(full_gam_dev, terms = c("s_month_1","s_month_2","s_month_3","s_mo
 
 # Example language for reporting:
 # The full model explained 62% of the variation in incident counts (conditional R² = 0.62). Removing the seasonal spline terms reduced R² by 0.18, whereas removing the polynomial time trend reduced R² by 0.06 and removing the environmental covariates reduced R² by 0.11, indicating that seasonal variation accounted for the largest proportion of uniquely explained variation.
+
+# OR COMPARE LOG LIKELIHOOD
+
+LR_time <- 2 * (logLik(m_full) - logLik(m_no_time))
+LR_month <- 2 * (logLik(m_full) - logLik(m_no_month))
+LR_precip <- 2 * (logLik(m_full) - logLik(m_no_precip))
+LR_visitor <- 2 * (logLik(m_full) - logLik(m_no_visitors))
+LR_kell <- 2 * (logLik(m_full) - logLik(m_no_kell))
+LR_chry <- 2 * (logLik(m_full) - logLik(m_no_chry))
+
+LRs <- c(
+  time = LR_time,
+  month = LR_month,
+  precip = LR_precip,
+  visitor = LR_visitor,
+  kellogii = LR_kell,
+  chry = LR_chry,
+)
+
+100 * LRs / sum(LRs)
