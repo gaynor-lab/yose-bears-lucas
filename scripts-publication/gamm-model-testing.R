@@ -641,22 +641,42 @@ m_no_chry <- update(
   . ~ . -
     chrysolepis_deviation_scaled
 )
+m_no_ar1 <- update(
+  m_full,
+  . ~ . -
+   (ar1(time + 0 | 1))
+)
 
 # Calculate R-squared for each model
-r2_no_time <- r2_zeroinflated(m_no_time)
-r2_no_month <- r2_zeroinflated(m_no_month)
-r2_no_precip <- r2_zeroinflated(m_no_precip)
-r2_no_visitor <- r2_zeroinflated(m_no_visitor)
-r2_no_kell <- r2_zeroinflated(m_no_kell)
-r2_m_no_chry <- r2_zeroinflated(m_no_chry)
+(r2_full <- r2_zeroinflated(m_full))
+(r2_no_time <- r2_zeroinflated(m_no_time))
+(r2_no_month <- r2_zeroinflated(m_no_month))
+(r2_no_precip <- r2_zeroinflated(m_no_precip))
+(r2_no_visitor <- r2_zeroinflated(m_no_visitor))
+(r2_no_kell <- r2_zeroinflated(m_no_kell))
+(r2_m_no_chry <- r2_zeroinflated(m_no_chry))
+(r2_m_no_ar1 <-   r2_zeroinflated(m_no_ar1))
 
 # Calculate partial R-squared for each term
-time_R2    <- r2_full$R2_conditional - r2_no_time$R2_conditional
-month_R2   <- r2_full$R2_conditional - r2_no_month$R2_conditional
-precip_R2   <- r2_full$R2_conditional - r2_no_precip$R2_conditional
-visitor_R2   <- r2_full$R2_conditional - r2_no_visitor$R2_conditional
-kell_R2   <- r2_full$R2_conditional - r2_no_kell$R2_conditional
-chry_R2   <- r2_full$R2_conditional - r2_m_no_chry$R2_conditional
+(time_R2    <- r2_full$R2 - r2_no_time$R2)
+(month_R2   <- r2_full$R2 - r2_no_month$R2)
+(precip_R2   <- r2_full$R2 - r2_no_precip$R2)
+(visitor_R2   <- r2_full$R2 - r2_no_visitor$R2)
+(kell_R2   <- r2_full$R2 - r2_no_kell$R2)
+(chry_R2   <- r2_full$R2 - r2_m_no_chry$R2)
+(ar1_R2 <- r2_full$R2 - r2_m_no_ar1$R2)
+
+
+anova(m_full, m_no_time)
+
+install.packages("gam.hp")
+library(gam.hp)
+gam.hp(m_full)
+
+
+library(ggeffects)
+plot(ggpredict(full_gam_dev, terms = "precip_1_12_scaled"))
+plot(ggpredict(full_gam_dev, terms = c("s_month_1","s_month_2","s_month_3","s_month_4")))
 
 # Example language for reporting:
 # The full model explained 62% of the variation in incident counts (conditional R² = 0.62). Removing the seasonal spline terms reduced R² by 0.18, whereas removing the polynomial time trend reduced R² by 0.06 and removing the environmental covariates reduced R² by 0.11, indicating that seasonal variation accounted for the largest proportion of uniquely explained variation.
