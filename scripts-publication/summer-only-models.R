@@ -6,6 +6,7 @@ library(glmmTMB)
 library(DHARMa)
 library(broom.mixed)
 
+# change lag windows to shorter
 # =============================================================================
 # Read in and filter data
 # =============================================================================
@@ -35,6 +36,8 @@ ggplot(monthly_totals, aes(x = Month, y = total_incidents)) +
 incidents_summer <- incidents %>% 
   filter(substr(Month_Year, 6, 7) %in% c("06", "07", "08"))
 
+sum(incidents_summer$number_incidents)
+sum(incidents_summer$RBDB_incidents)
 
 # =============================================================================
 # Group monthly data to yearly
@@ -174,6 +177,7 @@ mod_yearly <- glmmTMB(
 
 summary(mod_yearly)
 
+
 # mod_no_visitors <- glmmTMB(
 #   total_incidents_summer ~ flow_4_12_scaled + temp_4_12_scaled,
 #   family = nbinom2(),
@@ -190,6 +194,13 @@ testDispersion(sim_res)
 plotResiduals(sim_res, incidents_yearly$flow_4_12_scaled)
 plotResiduals(sim_res, incidents_yearly$temp_4_12_scaled)
 plotResiduals(sim_res, incidents_yearly$visitors_scaled) #signficant
+
+#check temporal autocorrelation (add year previously?) 
+
+# r2
+library(performance)
+r2(mod_yearly)
+
 
 # =============================================================================
 # Plot
@@ -220,7 +231,7 @@ incidents_yearly %>%
   geom_point(size = 2) +
   scale_color_manual(
     values = c("total_incidents_summer" = "black", "predicted" = "red"),
-    labels = c("Observed", "Predicted")
+    labels = c("Predicted", "Observed")
   ) +
   labs(
     title = "Observed vs. Predicted Summer Incidents by Year",
