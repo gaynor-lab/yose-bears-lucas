@@ -212,7 +212,7 @@ windows <- list(
   "2_9"   = c(2, 9),
   "2_12"  = c(2, 12),
   "3_5"   = c(3, 5),
-  "3_6"   = c(3, 6),
+  "3_7"   = c(3, 7),
   "3_9"   = c(3, 9),
   "3_12"  = c(3, 12),
   "4_6"   = c(4, 6),
@@ -472,6 +472,7 @@ ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
   ) +
   theme_minimal()
 
+
 # =============================================================================
 # Look at coefficient estimates
 # =============================================================================
@@ -494,4 +495,5 @@ ggplot(cond_eff %>%
   geom_hline(yintercept = 0, linetype = "dashed", color = "blue") +
   labs(x = NULL, y = "Estimate") +
   theme_bw()
+
 
