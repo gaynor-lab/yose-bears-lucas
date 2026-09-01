@@ -2,6 +2,7 @@ library(dplyr)
 library(ggplot2)
 library(tidyr)
 library(readr)
+library(patchwork)
 
 incident_full <- read.csv("data_cleaned/incidents_clean_with_bear_info.csv") 
 
@@ -56,7 +57,7 @@ age_sex_counts <- incident_full %>%
   filter(!is.na(est_age), !is.na(Sex), !is.na(BearID)) %>%
   count(est_age, Sex)
 
-ggplot(age_sex_counts, aes(x = est_age, y = n, fill = Sex)) +
+(age_sex_counts_hist <- ggplot(age_sex_counts, aes(x = est_age, y = n, fill = Sex)) +
   geom_col(position = "identity", width = 0.9) +
   labs(
     x = "Estimated bear age",
@@ -64,27 +65,43 @@ ggplot(age_sex_counts, aes(x = est_age, y = n, fill = Sex)) +
   ) +
   scale_y_continuous(expand = c(0, 0)) +
   scale_x_continuous(expand = c(0, 0)) +
-  theme_minimal() +
-  theme(
-    panel.background = element_blank(),
-    plot.background = element_blank(),
-    axis.line = element_line(color = "black"),
-    panel.grid = element_blank()
-  )
-
+    theme_minimal() +
+  theme(legend.position = c(0.85, 0.7),
+        legend.background = element_blank())
+)
 
 # Conflicts per bear
 conflicts_per_bear <- count(incident_full, BearID, Sex) %>% 
   filter(is.na(BearID) == FALSE)
 
-ggplot(conflicts_per_bear, aes(x = n)) +
+(conflicts_per_bear_hist <- ggplot(conflicts_per_bear, aes(x = n)) +
   geom_histogram(binwidth = 1) +
   labs(
-    x = "Number of conflicts per bear",
+    x = "Number of incidents per bear",
     y = "Number of bears"
   ) +
-  theme_minimal()
+    scale_y_continuous(expand = c(0, 0)) +
+    scale_x_continuous(expand = c(0, 0)) +
+    theme_minimal()
+)
 
+# Export
+(combined_hist <- age_sex_counts_hist / conflicts_per_bear_hist + plot_annotation(tag_levels = "A"))
+ggsave("figures/conflict-histograms.png", height = 6, width = 8)
+
+# Summarize conflict types
+incident_counts <- incident_full %>% 
+  count(IncidentTypeDesc)
+
+ggplot(incident_counts, aes(x = reorder(IncidentTypeDesc, n), y = n)) +
+  geom_col() +
+  labs(
+    x = "Incident type",
+    y = "Number of incidents"
+  ) +
+  theme_minimal() +
+  coord_flip() 
+ggsave("figures/conflict-by-type.png", width = 6, height = 4)
 
 # Summarize conflict types by individual (note that this changed from property type as dataframe changed)
 
@@ -100,7 +117,7 @@ ggplot(incident_types_by_id, aes(x = BearID, y = n, fill = IncidentTypeDesc)) +
   geom_col() +
   labs(
     x = "Bear ID (ordered by total conflicts)",
-    y = "Number of conflicts",
+    y = "Number of incidents",
     fill = "Incident type"
   ) +
   theme_minimal() +
@@ -180,13 +197,9 @@ conflicts_by_bear_all <- left_join(meta_all, conflicts_per_bear) %>%
   rename(number_conflicts = n) %>% 
   mutate(number_conflicts = replace_na(number_conflicts, 0))
 
-
-library(ggplot2)
-
 ggplot(conflicts_by_bear_all, aes(x = number_conflicts)) +
-  geom_histogram(binwidth = 1, boundary = -0.5, color = "black", fill = "steelblue") +
-  scale_x_continuous(breaks = seq(0, max(conflicts_by_bear_all$number_conflicts, na.rm = TRUE), 1)) +
-  theme_bw()
+  geom_histogram(binwidth = 1, boundary = -0.5) +
+  theme_minimal()
 
 
 
