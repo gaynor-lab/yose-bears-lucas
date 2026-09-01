@@ -19,8 +19,6 @@ library(broom.mixed)
 library(tidyr)
 library(stringr)
 
-# group by month, summarize mean of visitation, then subtract mean from value for that month_year (visitor deviation)
-
 # =============================================================================
 # LOAD DATA AND REMOVE COVID CLOSURE MONTHS
 # =============================================================================
@@ -53,7 +51,7 @@ incidents <- incidents %>%
          chrysolepis_deviation = N30_CHRYSOLEPIS - mean_chrysolepis,
          kellogii_deviation    = N30_KELLOGGII - mean_kellogii)
 
-visit <- incidents %>% select(Month_Year, Year, Month, visitors, mean_visitors, visitor_deviation) %>% arrange(abs(visitor_deviation))
+visit <- incidents %>% dplyr::select(Month_Year, Year, Month, visitors, mean_visitors, visitor_deviation) %>% arrange(abs(visitor_deviation))
 
 str(incidents$kellogii_deviation)
 # =============================================================================
@@ -154,18 +152,10 @@ corrplot(
 # For each covariate, compute variance within each calendar month across years.
 # High variance = more interannual signal available for modeling.
 
-incidents %>%
-  dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -contains("month_of_year"), -contains("time"), -ends_with("_scaled")) %>%
-  group_by(Month) %>%
-  summarise(across(where(is.numeric), ~ var(.x, na.rm = TRUE))) %>%
-  tidyr::pivot_longer(-Month, names_to = "covariate", values_to = "variance") %>%
-  arrange(covariate, Month) %>%
-  print(n = 216)
-
 # Visual: each line = one month, plotted across years per covariate
 # Lines with high spread = high interannual variability within that month
 incidents %>%
-  dplyr::select(Month, Year, where(is.numeric), -contains("incidents"), -contains("s_"), -contains("month_of_year"), -contains("time"), -ends_with("_scaled")) %>%
+  dplyr::select(Month, Year, temp_1_12, flow_1_12, precip_1_12, visitors, N30_CHRYSOLEPIS, N30_KELLOGGII, kellogii_deviation, chrysolepis_deviation, visitor_deviation) %>%
   tidyr::pivot_longer(c(-Month, -Year), names_to = "covariate", values_to = "value") %>%
   ggplot(aes(x = Year, y = value, group = Month, color = Month)) +
   geom_line() +
@@ -221,199 +211,6 @@ incidents %>%
 # could consider doing this: sin(2*pi*month_of_year/12) + cos(2*pi*month_of_year/12), but for now will match the other spline structure
 
 # =============================================================================
-# AIC COMPARISON
-# STAGE 1: PER-VARIABLE LAG WINDOW SCREENING (unchanged from before)
-# =============================================================================
-
-# windows <- list(
-#   "1_3"   = c(1, 3),
-#   "1_6"   = c(1, 6),
-#   "1_9"   = c(1, 9),
-#   "1_12"   = c(1, 12),
-#   "2_4"   = c(2, 4),
-#   "2_6"   = c(2, 6),
-#   "2_9"   = c(2, 9),
-#   "2_12"  = c(2, 12),
-#   "3_5"   = c(3, 5),
-#   "3_7"   = c(3, 7),
-#   "3_9"   = c(3, 9),
-#   "3_12"  = c(3, 12),
-#   "4_6"   = c(4, 6),
-#   "4_9"   = c(4, 9),
-#   "4_12"  = c(4, 12)
-# )
-# window_names <- names(windows)
-# 
-# fixed_terms <- c(
-#   "offset(log(days_month))",
-#   "visitors_scaled",
-#   "N30_CHRYSOLEPIS_scaled",
-#   "N30_KELLOGGII_scaled",
-#   "s_month_1", "s_month_2", "s_month_3", "s_month_4",
-#   "poly(time, 2)",
-#   "ar1(time + 0 | 1)"
-# )
-# fixed_ziformula <- ~ s_month_1 + s_month_2 + s_month_3 + s_month_4
-# 
-# fit_model <- function(env_vars) {
-#   all_terms <- c(fixed_terms, env_vars)
-#   f <- as.formula(paste("total_incidents ~", paste(all_terms, collapse = " + ")))
-#   tryCatch(
-#     glmmTMB(f, ziformula = fixed_ziformula, family = nbinom2, data = incidents),
-#     error = function(e) NULL
-#   )
-# }
-# 
-# screen_variable <- function(var_prefix) {
-#   choices <- c(window_names, "none")
-#   map_dfr(choices, function(w) {
-#     env_var <- if (w == "none") NULL else paste0(var_prefix, "_", w, "_scaled")
-#     fit <- fit_model(env_var)
-#     data.frame(
-#       variable  = var_prefix,
-#       window    = w,
-#       aic_value = if (!is.null(fit)) AIC(fit) else NA,
-#       converged = !is.null(fit)
-#     )
-#   }) %>% arrange(aic_value)
-# }
-# 
-# precip_screen <- screen_variable("precip")
-# flow_screen   <- screen_variable("flow")
-# temp_screen   <- screen_variable("temp")
-# 
-# # =============================================================================
-# # STAGE 2: COMBO GRID -- force "none" in for every variable so 1-var,
-# # 2-var, and 3-var models are all represented, not just locally-competitive
-# # windows from Stage 1.
-# # =============================================================================
-# 
-# top_n_per_var <- 3
-# 
-# precip_finalists <- union(precip_screen %>% slice_min(aic_value, n = top_n_per_var) %>% pull(window), "none")
-# flow_finalists   <- union(flow_screen   %>% slice_min(aic_value, n = top_n_per_var) %>% pull(window), "none")
-# temp_finalists   <- union(temp_screen   %>% slice_min(aic_value, n = top_n_per_var) %>% pull(window), "none")
-# 
-# combo_grid <- expand.grid(
-#   precip_choice = precip_finalists,
-#   flow_choice   = flow_finalists,
-#   temp_choice   = temp_finalists,
-#   stringsAsFactors = FALSE
-# )
-# 
-# fit_combo <- function(precip_choice, flow_choice, temp_choice) {
-#   precip_var <- if (precip_choice == "none") NULL else paste0("precip_", precip_choice, "_scaled")
-#   flow_var   <- if (flow_choice   == "none") NULL else paste0("flow_",   flow_choice,   "_scaled")
-#   temp_var   <- if (temp_choice   == "none") NULL else paste0("temp_",   temp_choice,   "_scaled")
-#   
-#   env_vars <- c(precip_var, flow_var, temp_var)
-#   fit <- fit_model(env_vars)
-#   
-#   data.frame(
-#     precip_window = precip_choice,
-#     flow_window   = flow_choice,
-#     temp_window   = temp_choice,
-#     precip_var = precip_var %||% "none",
-#     flow_var   = flow_var   %||% "none",
-#     temp_var   = temp_var   %||% "none",
-#     env_vars_included = if (length(env_vars) == 0) "none" else paste(env_vars, collapse = " + "),
-#     aic_value = if (!is.null(fit)) AIC(fit) else NA,
-#     converged = !is.null(fit)
-#   )
-# }
-# 
-# # small helper since base R has no %||%
-# `%||%` <- function(a, b) if (is.null(a)) b else a
-# 
-# combo_results <- pmap_dfr(combo_grid, fit_combo) %>%
-#   filter(converged) %>%
-#   arrange(aic_value)
-# 
-# # ---- TOP 20 combined models ----
-# top20 <- combo_results %>% slice_min(aic_value, n = 20)
-# print(top20)
-
-# =============================================================================
-# STAGE 3: FOR EACH OF THE TOP 20, TEST EVI ADDED / REPLACING EACH VARIABLE
-# =============================================================================
-# 
-# evi_var <- "evi_mean_scaled"
-# 
-# build_evi_scenarios <- function(row) {
-#   
-#   base_vars <- c(row$precip_var, row$flow_var, row$temp_var)
-#   base_vars <- base_vars[base_vars != "none"]
-#   
-#   scenarios <- list(
-#     baseline = base_vars,                                  # no EVI, for reference
-#     add_evi  = c(base_vars, evi_var)                        # EVI added on top
-#   )
-#   
-#   # EVI replacing each base variable that's actually present in this model
-#   if (row$precip_var != "none") {
-#     scenarios[["evi_replaces_precip"]] <- c(setdiff(base_vars, row$precip_var), evi_var)
-#   }
-#   if (row$flow_var != "none") {
-#     scenarios[["evi_replaces_flow"]] <- c(setdiff(base_vars, row$flow_var), evi_var)
-#   }
-#   if (row$temp_var != "none") {
-#     scenarios[["evi_replaces_temp"]] <- c(setdiff(base_vars, row$temp_var), evi_var)
-#   }
-#   
-#   scenarios
-# }
-# 
-# run_evi_for_row <- function(row_id, row) {
-#   scenarios <- build_evi_scenarios(row)
-#   
-#   map_dfr(names(scenarios), function(label) {
-#     env_vars <- scenarios[[label]]
-#     fit <- fit_model(env_vars)
-#     data.frame(
-#       base_model_rank = row_id,
-#       base_model      = row$env_vars_included,
-#       scenario        = label,
-#       env_vars_included = if (length(env_vars) == 0) "none" else paste(env_vars, collapse = " + "),
-#       aic_value = if (!is.null(fit)) AIC(fit) else NA,
-#       converged = !is.null(fit)
-#     )
-#   })
-# }
-# 
-# evi_comparison <- map2_dfr(
-#   seq_len(nrow(top20)),
-#   split(top20, seq_len(nrow(top20))),
-#   run_evi_for_row
-# )
-# 
-# evi_comparison <- evi_comparison %>% filter(converged) %>% arrange(aic_value)
-# 
-# # Full table: every scenario (baseline/add/replace-x) for every one of the
-# # top 20 base models, sorted by AIC across the whole set
-# #print(evi_comparison, n = 100)
-# 
-# # Best result overall, regardless of which base model or EVI scenario it came from
-# best_overall <- evi_comparison %>% slice_min(aic_value, n = 1)
-# cat("\nBest overall model:\n")
-# cat("  Base model rank:", best_overall$base_model_rank, "\n")
-# cat("  Scenario:", best_overall$scenario, "\n")
-# cat("  Vars:", best_overall$env_vars_included, "\n")
-# cat("  AIC:", round(best_overall$aic_value, 1), "\n")
-# 
-# # Summary: how does each scenario type perform on average across all 20
-# # base models? Tells you whether EVI is generally helpful (add), generally
-# # redundant (replace wins a lot), or generally not worth it (baseline wins)
-# evi_comparison %>%
-#   group_by(scenario) %>%
-#   summarise(
-#     mean_aic = mean(aic_value),
-#     min_aic  = min(aic_value),
-#     n_models = n()
-#   ) %>%
-#   arrange(mean_aic)
-
-
-# =============================================================================
 # Model
 # =============================================================================
 
@@ -425,7 +222,7 @@ full_gam_dev <- glmmTMB(
     precip_1_12_scaled +
     #flow_1_12_scaled + 
     #evi_mean_scaled +
-    #temp_1_12_scaled + 
+    temp_1_12_scaled + 
    # visitors_scaled +
     visitor_deviation_scaled +
    # N30_KELLOGGII_scaled +
@@ -459,7 +256,7 @@ full_gam <- glmmTMB(
     precip_1_12_scaled +
     #flow_1_12_scaled + 
     #evi_mean_scaled +
-    #temp_1_12_scaled + 
+    temp_1_12_scaled + 
      visitors_scaled +
    # visitor_deviation_scaled +
      N30_KELLOGGII_scaled +
@@ -485,12 +282,17 @@ full_gam <- glmmTMB(
   
 )
 
+
 summary(full_gam_dev)
 summary(full_gam)
+AIC(full_gam_dev, full_gam)
 
 # =============================================================================
 # Diagnostics
 # =============================================================================
+# ------------------
+# Full GAM
+# ------------------
 # residuals
 sim_res <- simulateResiduals(full_gam, n = 1000)
 
@@ -507,21 +309,23 @@ testZeroInflation(sim_res)
 
 # temporal autocorrelation
 testTemporalAutocorrelation(sim_res, time = incidents$time)
-plotResiduals(sim_res, incidents$time) # significantly deviant
+plotResiduals(sim_res, incidents$time) # all good
 acf(residuals(sim_res))
 
 # Check residuals against individual predictors to spot remaining patterns
-plotResiduals(sim_res, incidents$Month)
-plotResiduals(sim_res, incidents$Year) 
+plotResiduals(sim_res, incidents$Month) # all good
+plotResiduals(sim_res, incidents$Year)  # all good
 
-
+# ------------------
+# Full gam_dev
+# ------------------
 # residuals
 sim_res <- simulateResiduals(full_gam_dev, n = 1000)
 
 plot(sim_res) # all good 
 
 # uniformity (overall fit)
-testUniformity(sim_res)
+testUniformity(sim_res) # all good
 
 # over/underdispersion
 testDispersion(sim_res)  
@@ -530,8 +334,8 @@ testDispersion(sim_res)
 testZeroInflation(sim_res) 
 
 # temporal autocorrelation
-testTemporalAutocorrelation(sim_res, time = incidents$time)
-plotResiduals(sim_res, incidents$time) # significantly deviant
+testTemporalAutocorrelation(sim_res, time = incidents$time) # significantly deviant
+plotResiduals(sim_res, incidents$time)  #looks good
 acf(residuals(sim_res))
 
 # Check residuals against individual predictors to spot remaining patterns
@@ -611,7 +415,7 @@ hist(incidents$visitor_deviation)
 #ALL FROM COPILOT BELOW, R-SQUARED ARE TOO HIGH TO BE INFORMATIVE SO WE ALSO LOOKED AT LOG LIKELIHOOD
 
 # Run models w/o select terms
-m_full <- full_gam_dev
+m_full <- full_gam
 m_no_time <- update(
   m_full,
   . ~ . - poly(time, 2)
@@ -626,6 +430,13 @@ m_no_precip <- update(
   . ~ . -
     precip_1_12_scaled
 )
+
+m_no_temp <- update(
+  m_full,
+  . ~ . -
+   temp_1_12_scaled
+)
+
 m_no_visitor <- update(
   m_full,
   . ~ . -
@@ -648,10 +459,12 @@ m_no_ar1 <- update(
 )
 
 # Calculate R-squared for each model
+library(performance)
 (r2_full <- r2_zeroinflated(m_full))
 (r2_no_time <- r2_zeroinflated(m_no_time))
 (r2_no_month <- r2_zeroinflated(m_no_month))
 (r2_no_precip <- r2_zeroinflated(m_no_precip))
+(r2_no_temp <- r2_zeroinflated(m_no_temp))
 (r2_no_visitor <- r2_zeroinflated(m_no_visitor))
 (r2_no_kell <- r2_zeroinflated(m_no_kell))
 (r2_m_no_chry <- r2_zeroinflated(m_no_chry))
@@ -661,6 +474,7 @@ m_no_ar1 <- update(
 (time_R2    <- r2_full$R2 - r2_no_time$R2)
 (month_R2   <- r2_full$R2 - r2_no_month$R2)
 (precip_R2   <- r2_full$R2 - r2_no_precip$R2)
+(temp_R2   <- r2_full$R2 - r2_no_temp$R2)
 (visitor_R2   <- r2_full$R2 - r2_no_visitor$R2)
 (kell_R2   <- r2_full$R2 - r2_no_kell$R2)
 (chry_R2   <- r2_full$R2 - r2_m_no_chry$R2)
@@ -668,10 +482,6 @@ m_no_ar1 <- update(
 
 
 anova(m_full, m_no_time)
-
-install.packages("gam.hp")
-library(gam.hp)
-gam.hp(m_full)
 
 
 # Example language for reporting:
@@ -683,6 +493,7 @@ gam.hp(m_full)
 LR_time <- 2 * (logLik(m_full) - logLik(m_no_time))
 LR_month <- 2 * (logLik(m_full) - logLik(m_no_month))
 LR_precip <- 2 * (logLik(m_full) - logLik(m_no_precip))
+LR_temp <- 2 * (logLik(m_full) - logLik(m_no_temp))
 LR_visitor <- 2 * (logLik(m_full) - logLik(m_no_visitor))
 LR_kell <- 2 * (logLik(m_full) - logLik(m_no_kell))
 LR_chry <- 2 * (logLik(m_full) - logLik(m_no_chry))
@@ -691,9 +502,416 @@ LRs <- c(
   time = LR_time,
   month = LR_month,
   precip = LR_precip,
+  temp = LR_temp,
   visitor = LR_visitor,
   kellogii = LR_kell,
   chry = LR_chry
 )
 
 100 * LRs / sum(LRs) # convert to percents
+
+# =============================================================================
+# Do GAMs for HBV and food incidents
+# =============================================================================
+# Food-related incidents
+food_full_gam <- glmmTMB(
+  
+  number_incidents ~
+    
+    # covariates of interest
+    precip_1_12_scaled +
+    #flow_1_12_scaled + 
+    #evi_mean_scaled +
+    temp_1_12_scaled + 
+    visitors_scaled +
+    # visitor_deviation_scaled +
+    N30_KELLOGGII_scaled +
+    # kellogii_deviation_scaled +
+    #chrysolepis_deviation_scaled +
+    N30_CHRYSOLEPIS_scaled + 
+    
+    
+    # month basis functions
+    s_month_1 + s_month_2 + s_month_3 + s_month_4 +
+    
+    # add smooth term for time
+    poly(time, 2) +
+    
+    # autoregressive term
+    ar1(time + 0 | 1),
+  
+  # zero-inflation formula
+  ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
+  
+  family = nbinom2,
+  data = incidents
+  
+)
+
+# HBV
+HBV_full_gam <- glmmTMB(
+  
+  RBDB_incidents ~
+    
+    # covariates of interest
+    precip_1_12_scaled +
+    #flow_1_12_scaled + 
+    #evi_mean_scaled +
+    temp_1_12_scaled + 
+    visitors_scaled +
+    # visitor_deviation_scaled +
+    N30_KELLOGGII_scaled +
+    # kellogii_deviation_scaled +
+    #chrysolepis_deviation_scaled +
+    N30_CHRYSOLEPIS_scaled + 
+    
+    
+    # month basis functions
+    s_month_1 + s_month_2 + s_month_3 + s_month_4 +
+    
+    # add smooth term for time
+    poly(time, 2) +
+    
+    # autoregressive term
+    ar1(time + 0 | 1),
+  
+  # zero-inflation formula
+  ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
+  
+  family = nbinom2,
+  data = incidents
+  
+)
+
+# -------------------------
+# Look at coefficient estimates
+# -------------------------
+
+# food
+cond_eff_food <- broom.mixed::tidy(
+  food_full_gam,
+  effects = "fixed",
+  conf.int = TRUE
+)  %>%
+  filter(!grepl("^s_month_", term))
+
+
+ggplot(cond_eff_food %>% 
+         filter(component == "cond") %>% 
+         filter(!str_detect(term, "Intercept|poly\\(time")),
+       aes(x = reorder(term, estimate), y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "blue") +
+  labs(x = NULL, y = "Estimate") +
+  theme_bw()
+
+# HBV
+cond_eff_hbv <- broom.mixed::tidy(
+  HBV_full_gam,
+  effects = "fixed",
+  conf.int = TRUE
+)  %>%
+  filter(!grepl("^s_month_", term))
+
+
+ggplot(cond_eff_hbv %>% 
+         filter(component == "cond") %>% 
+         filter(!str_detect(term, "Intercept|poly\\(time")),
+       aes(x = reorder(term, estimate), y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "blue") +
+  labs(x = NULL, y = "Estimate") +
+  theme_bw()
+
+# -------------------------
+# Observed vs predicted
+# -------------------------
+
+# Food
+incidents$predicted <- predict(food_full_gam, type = "response")
+
+ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
+  geom_line(aes(y = number_incidents, color = "Observed"), alpha = 0.6) +
+  geom_line(aes(y = predicted, color = "Predicted"), linewidth = 1) +
+  labs(
+    y = "Incidents",
+    x = "Date",
+    color = NULL
+  ) +
+  scale_color_manual(
+    values = c(
+      "Observed" = "black",
+      "Predicted" = "red"
+    )
+  ) +
+  theme_minimal()
+
+# HBV
+incidents$predicted <- predict(HBV_full_gam, type = "response")
+
+ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
+  geom_line(aes(y = RBDB_incidents, color = "Observed"), alpha = 0.6) +
+  geom_line(aes(y = predicted, color = "Predicted"), linewidth = 1) +
+  labs(
+    y = "Incidents",
+    x = "Date",
+    color = NULL
+  ) +
+  scale_color_manual(
+    values = c(
+      "Observed" = "black",
+      "Predicted" = "red"
+    )
+  ) +
+  theme_minimal()
+
+# -------------------------
+# CALCULATE PARTIAL R-SQUARED for food model
+# -------------------------
+
+# Run models w/o select terms
+m_full <- food_full_gam
+m_no_time <- update(
+  m_full,
+  . ~ . - poly(time, 2)
+)
+m_no_month <- update(
+  m_full,
+  . ~ . - s_month_1 - s_month_2 - s_month_3 - s_month_4,
+  ziformula = ~ 1
+)
+m_no_precip <- update(
+  m_full,
+  . ~ . -
+    precip_1_12_scaled
+)
+
+m_no_temp <- update(
+  m_full,
+  . ~ . -
+    temp_1_12_scaled
+)
+
+m_no_visitor <- update(
+  m_full,
+  . ~ . -
+    visitor_deviation_scaled 
+)
+m_no_kell <- update(
+  m_full,
+  . ~ . -
+    kellogii_deviation_scaled 
+)
+m_no_chry <- update(
+  m_full,
+  . ~ . -
+    chrysolepis_deviation_scaled
+)
+m_no_ar1 <- update(
+  m_full,
+  . ~ . -
+    (ar1(time + 0 | 1))
+)
+
+# Calculate R-squared for each model
+library(performance)
+(r2_full <- r2_zeroinflated(m_full))
+(r2_no_time <- r2_zeroinflated(m_no_time))
+(r2_no_month <- r2_zeroinflated(m_no_month))
+(r2_no_precip <- r2_zeroinflated(m_no_precip))
+(r2_no_temp <- r2_zeroinflated(m_no_temp))
+(r2_no_visitor <- r2_zeroinflated(m_no_visitor))
+(r2_no_kell <- r2_zeroinflated(m_no_kell))
+(r2_m_no_chry <- r2_zeroinflated(m_no_chry))
+(r2_m_no_ar1 <-   r2_zeroinflated(m_no_ar1))
+
+# Calculate partial R-squared for each term
+(time_R2    <- r2_full$R2 - r2_no_time$R2)
+(month_R2   <- r2_full$R2 - r2_no_month$R2)
+(precip_R2   <- r2_full$R2 - r2_no_precip$R2)
+(temp_R2   <- r2_full$R2 - r2_no_temp$R2)
+(visitor_R2   <- r2_full$R2 - r2_no_visitor$R2)
+(kell_R2   <- r2_full$R2 - r2_no_kell$R2)
+(chry_R2   <- r2_full$R2 - r2_m_no_chry$R2)
+(ar1_R2 <- r2_full$R2 - r2_m_no_ar1$R2)
+
+
+# OR COMPARE LOG LIKELIHOOD
+
+# likelihood ratios
+LR_time <- 2 * (logLik(m_full) - logLik(m_no_time))
+LR_month <- 2 * (logLik(m_full) - logLik(m_no_month))
+LR_precip <- 2 * (logLik(m_full) - logLik(m_no_precip))
+LR_temp <- 2 * (logLik(m_full) - logLik(m_no_temp))
+LR_visitor <- 2 * (logLik(m_full) - logLik(m_no_visitor))
+LR_kell <- 2 * (logLik(m_full) - logLik(m_no_kell))
+LR_chry <- 2 * (logLik(m_full) - logLik(m_no_chry))
+
+LRs <- c(
+  time = LR_time,
+  month = LR_month,
+  precip = LR_precip,
+  temp = LR_temp,
+  visitor = LR_visitor,
+  kellogii = LR_kell,
+  chry = LR_chry
+)
+
+100 * LRs / sum(LRs) # convert to percents
+
+# -------------------------
+# CALCULATE PARTIAL R-SQUARED for HBV model
+# -------------------------
+
+# Run models w/o select terms
+m_full <- HBV_full_gam
+m_no_time <- update(
+  m_full,
+  . ~ . - poly(time, 2)
+)
+m_no_month <- update(
+  m_full,
+  . ~ . - s_month_1 - s_month_2 - s_month_3 - s_month_4,
+  ziformula = ~ 1
+)
+m_no_precip <- update(
+  m_full,
+  . ~ . -
+    precip_1_12_scaled
+)
+
+m_no_temp <- update(
+  m_full,
+  . ~ . -
+    temp_1_12_scaled
+)
+
+m_no_visitor <- update(
+  m_full,
+  . ~ . -
+    visitor_deviation_scaled 
+)
+m_no_kell <- update(
+  m_full,
+  . ~ . -
+    kellogii_deviation_scaled 
+)
+m_no_chry <- update(
+  m_full,
+  . ~ . -
+    chrysolepis_deviation_scaled
+)
+m_no_ar1 <- update(
+  m_full,
+  . ~ . -
+    (ar1(time + 0 | 1))
+)
+
+# Calculate R-squared for each model
+library(performance)
+(r2_full <- r2_zeroinflated(m_full))
+(r2_no_time <- r2_zeroinflated(m_no_time))
+(r2_no_month <- r2_zeroinflated(m_no_month))
+(r2_no_precip <- r2_zeroinflated(m_no_precip))
+(r2_no_temp <- r2_zeroinflated(m_no_temp))
+(r2_no_visitor <- r2_zeroinflated(m_no_visitor))
+(r2_no_kell <- r2_zeroinflated(m_no_kell))
+(r2_m_no_chry <- r2_zeroinflated(m_no_chry))
+(r2_m_no_ar1 <-   r2_zeroinflated(m_no_ar1))
+
+# Calculate partial R-squared for each term
+(time_R2    <- r2_full$R2 - r2_no_time$R2)
+(month_R2   <- r2_full$R2 - r2_no_month$R2)
+(precip_R2   <- r2_full$R2 - r2_no_precip$R2)
+(temp_R2   <- r2_full$R2 - r2_no_temp$R2)
+(visitor_R2   <- r2_full$R2 - r2_no_visitor$R2)
+(kell_R2   <- r2_full$R2 - r2_no_kell$R2)
+(chry_R2   <- r2_full$R2 - r2_m_no_chry$R2)
+(ar1_R2 <- r2_full$R2 - r2_m_no_ar1$R2)
+
+
+# OR COMPARE LOG LIKELIHOOD
+
+# likelihood ratios
+LR_time <- 2 * (logLik(m_full) - logLik(m_no_time))
+LR_month <- 2 * (logLik(m_full) - logLik(m_no_month))
+LR_precip <- 2 * (logLik(m_full) - logLik(m_no_precip))
+LR_temp <- 2 * (logLik(m_full) - logLik(m_no_temp))
+LR_visitor <- 2 * (logLik(m_full) - logLik(m_no_visitor))
+LR_kell <- 2 * (logLik(m_full) - logLik(m_no_kell))
+LR_chry <- 2 * (logLik(m_full) - logLik(m_no_chry))
+
+LRs <- c(
+  time = LR_time,
+  month = LR_month,
+  precip = LR_precip,
+  temp = LR_temp,
+  visitor = LR_visitor,
+  kellogii = LR_kell,
+  chry = LR_chry
+)
+
+100 * LRs / sum(LRs) # convert to percents
+
+# =============================================================================
+# Diagnostics
+# =============================================================================
+# -------------------------
+# Food
+# -------------------------
+full_gam <- food_full_gam
+# residuals
+sim_res <- simulateResiduals(full_gam, n = 1000)
+
+plot(sim_res) # all good 
+
+# uniformity (overall fit)
+testUniformity(sim_res) # all good 
+
+# over/underdispersion
+testDispersion(sim_res)  
+
+# zero-inflation
+testZeroInflation(sim_res) 
+
+# temporal autocorrelation
+testTemporalAutocorrelation(sim_res, time = incidents$time)
+plotResiduals(sim_res, incidents$time) # all good
+acf(residuals(sim_res)) 
+
+# Check residuals against individual predictors to spot remaining patterns
+plotResiduals(sim_res, incidents$Month) # all good
+plotResiduals(sim_res, incidents$Year)  # all good
+
+# -------------------------
+# HBV
+# -------------------------
+full_gam <- HBV_full_gam
+# residuals
+sim_res <- simulateResiduals(full_gam, n = 1000)
+
+plot(sim_res) # all good 
+
+# uniformity (overall fit)
+testUniformity(sim_res)
+
+# over/underdispersion
+testDispersion(sim_res)  
+
+# zero-inflation
+testZeroInflation(sim_res) 
+
+# temporal autocorrelation
+testTemporalAutocorrelation(sim_res, time = incidents$time)
+plotResiduals(sim_res, incidents$time) # all good
+acf(residuals(sim_res))
+
+# Check residuals against individual predictors to spot remaining patterns
+plotResiduals(sim_res, incidents$Month) # all good
+plotResiduals(sim_res, incidents$Year)  # all good
+
+

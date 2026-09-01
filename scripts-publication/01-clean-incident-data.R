@@ -15,6 +15,8 @@ incident_data <- read_excel("data_raw/incidents_2005-2025.xlsx")
 incident_data <- incident_data %>%
   filter(IncidentDate >= as.POSIXct("2010-01-01"))
 
+unique(incident_data$IncidentTypeDesc)
+
 #---------------------------------------------------------
 # Remove non-food or property related incidents
 #---------------------------------------------------------

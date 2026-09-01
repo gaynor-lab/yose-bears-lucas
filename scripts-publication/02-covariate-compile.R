@@ -10,15 +10,15 @@ monthly_incidents_all <- read_csv("data_cleaned/monthly_incidents_all.csv")
 #---------------------------------------------------------
 # NDVI/EVI data
 #---------------------------------------------------------
-ndvi_evi <- read_csv("data_raw/YosemiteValley_NDVI_EVI_monthly_2010_2025.csv") %>%
-  mutate(
-    date = as.Date(date),
-    Month_Year = format(date, "%Y-%m")
-  ) %>% 
-  select(Month_Year, evi_mean, ndvi_mean)
-
-monthly_incidents_all <- monthly_incidents_all %>%
-  left_join(ndvi_evi, by = "Month_Year")
+# ndvi_evi <- read_csv("data_raw/YosemiteValley_NDVI_EVI_monthly_2010_2025.csv") %>%
+#   mutate(
+#     date = as.Date(date),
+#     Month_Year = format(date, "%Y-%m")
+#   ) %>% 
+#   select(Month_Year, evi_mean, ndvi_mean)
+# 
+# monthly_incidents_all <- monthly_incidents_all %>%
+#   left_join(ndvi_evi, by = "Month_Year")
 #---------------------------------------------------------
 # Climate data
 #---------------------------------------------------------
@@ -294,6 +294,7 @@ make_lag_window <- function(df, var, start, end, agg_fun = mean) {
 
 windows <- list(
   "1_3"   = c(1, 3),
+  "1_4"   = c(1, 4),
   "1_6"   = c(1, 6),
   "1_9"   = c(1, 9),
   "1_12"   = c(1, 12),
@@ -353,8 +354,8 @@ write_csv(lagged_data, "data_cleaned/monthly_incidents_covar_cleaned.csv")
 
 # Check NA's
 data_na <- lagged_data %>%
-  filter(if_any(everything(), is.na)) #none!
-
+  filter(if_any(everything(), is.na))
+data_na  #none!
 
 #---------------------------------------------------------
 # Look at Cross Correlations (CCF) for lags 
