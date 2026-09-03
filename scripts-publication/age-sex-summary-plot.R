@@ -4,22 +4,46 @@ library(tidyr)
 library(readr)
 library(patchwork)
 
-incident_full <- read.csv("data_cleaned/incidents_clean_with_bear_info.csv") 
-
-incident_full %>%
+incident_full <- read.csv("data_cleaned/incidents_clean_with_bear_info.csv") |> 
+  filter(IncidentDate >= as.Date("2011-06-01")) %>%
   mutate(bear_id_status = case_when(
-    !is.na(BearID)          ~ "Known", #308 # only using known and "more certain"
-    !is.na(BearID_uncertain) ~ "Uncertain", #17 # for now, not including uncertain bears
-    TRUE                     ~ "None" #1211
-  )) %>%
-  count(bear_id_status) 
+    !is.na(BearID)          ~ "Known", # only using known and "more certain"
+    !is.na(BearID_uncertain) ~ "Uncertain", # for now, not including uncertain bears
+    TRUE                     ~ "None")) 
 
-head(incident_full)
+# Summarize known vs unknown bears
+incident_full |> 
+  count(bear_id_status) |> 
+  mutate(pct = n/nrow(incident_full) * 100)
+
+# Filter to just known bears
+incident_known <- incident_full |> 
+  filter(bear_id_status == "Known")
+
+# Count by sex
+incident_known |> 
+  count(Sex) |> 
+  mutate(pct = n/nrow(incident_known) * 100)
+
+# Count individual bears by sex
+incident_known |> 
+  select(BearID, Sex) |> 
+  unique() |> 
+  count(Sex) |> 
+  mutate(pct = n/length(unique(incident_known$BearID)) * 100)
+
+# Age summary statistics
+summary(incident_known$est_age)
+
+# Calculate percentage of conflicts by bears under 10 years old
+incident_known |> 
+  filter(est_age < 10) |> 
+  count() |> 
+  mutate(pct = n/nrow(incident_known) * 100)
 
 
 # Panel A: Age by sex plot
-age_sex_counts <- incident_full %>%
-  filter(!is.na(est_age), !is.na(Sex), !is.na(BearID)) %>%
+age_sex_counts <- incident_known %>%
   count(est_age, Sex)
 
 (age_sex_counts_hist <- ggplot(age_sex_counts, aes(x = est_age, y = n, fill = Sex)) +
