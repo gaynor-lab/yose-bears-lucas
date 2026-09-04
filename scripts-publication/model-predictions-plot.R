@@ -1,4 +1,4 @@
-source("scripts-publication/gamm-conflict-by-month.R")
+source("scripts-publication/gamm-model-testing.R")
 
 library(scales)
 library(patchwork)

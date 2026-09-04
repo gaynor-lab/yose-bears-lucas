@@ -9,7 +9,7 @@ library(tidyr)
 # Read in human–bear conflict incidents & filter dates
 #---------------------------------------------------------
 # Load incident data provided by Park
-incident_data <- read_excel("data_raw/incidents_2005-2025.xlsx") 
+incident_data <- read_excel("data_raw/Incidents_2005-2025.xlsx") 
 
 # filter to include January 2010 and beyond
 incident_data <- incident_data %>%
@@ -130,3 +130,41 @@ write_csv(
   "data_cleaned/monthly_incidents_all.csv"
 )
 
+---------------------
+  # Plot
+  library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
+monthly_incidents_plot <- monthly_incidents_all %>%
+  mutate(Month_Year = ym(Month_Year)) %>%
+  dplyr::select(Month_Year, number_incidents, RBDB_incidents) %>%
+  pivot_longer(
+    cols = c(number_incidents, RBDB_incidents),
+    names_to = "Incident_Type",
+    values_to = "Incidents"
+  ) %>%
+  mutate(
+    Incident_Type = recode(
+      Incident_Type,
+      number_incidents = "Food-related incidents",
+      RBDB_incidents = "HBV incidents"
+    )
+  )
+
+ggplot(monthly_incidents_plot, aes(x = Month_Year, y = Incidents, color = Incident_Type)) +
+  geom_line(linewidth = 1) +
+  labs(
+    x = "Month",
+    y = "Number of incidents",
+    color = "Incident type"
+  ) +
+  scale_x_date(
+    date_breaks = "1 year",
+    date_labels = "%Y"
+  ) +
+  theme_classic() +
+  theme(
+    legend.position = "top"
+  )
