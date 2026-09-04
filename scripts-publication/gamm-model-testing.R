@@ -1,9 +1,6 @@
 # =============================================================================
 # Covariate Preparation, Selection & Fitting
 # =============================================================================
-
-# Next step: model HBV and food-related incidents too (with same model structure )
-
 library(mgcv)
 library(glmmTMB)
 library(DHARMa)
@@ -62,86 +59,86 @@ incidents <- incidents[order(incidents$Month_Year), ]
 
 colnames(incidents) # checking
 
-# =============================================================================
-# COVARIATE COLLINEARITY: CORRELATION MATRIX
-# =============================================================================
-# Numeric correlation table
-incidents %>%
-  dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
-  cor(use = "complete.obs") %>%
-  round(2)
-
-
-# Signed correlation plot
-incidents %>%
-  dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
-  cor(use = "complete.obs") %>%
-  corrplot(
-    method = "color",
-    type   = "upper",
-    tl.cex = 0.7,
-    addCoef.col = "black",
-    number.cex  = 0.6
-  )
-
-# =============================================================================
-# COVARIATE CORRELATION GROUPED BY MONTH 
-# =============================================================================
-
-# Select relevant scaled variables
-scaled_vars <- incidents %>%
-  dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
-  dplyr::select(-matches("N30|visitor")) %>%
-  names()
-
-# Per-month correlation matrices
-month_cors <- incidents %>%
-  dplyr::select(Month, all_of(scaled_vars)) %>%
-  group_by(Month) %>%
-  group_split() %>%
-  map(function(df) {
-    m <- df %>%
-      dplyr::select(all_of(scaled_vars)) %>%
-      cor(use = "complete.obs")
-    list(month = unique(df$Month), cor_matrix = m)
-  })
-
-# Average correlation across months
-avg_cor <- month_cors %>%
-  map("cor_matrix") %>%
-  reduce(`+`) %>%
-  `/`(length(month_cors)) %>%
-  round(2)
-
-# --- Plot 1: Average r across all months ---
-corrplot(
-  avg_cor,
-  method      = "color",
-  type        = "upper",
-  tl.cex      = 0.7,
-  addCoef.col = "black",
-  number.cex  = 0.6,
-  title       = "Mean |r| across months",
-  mar         = c(0, 0, 2, 0)
-)
-
-
-# =============================================================================
-# WITHIN-MONTH INTERANNUAL VARIANCE
-# =============================================================================
-# For each covariate, compute variance within each calendar month across years.
-# High variance = more interannual signal available for modeling.
-
-# Visual: each line = one month, plotted across years per covariate
-# Lines with high spread = high interannual variability within that month
-incidents %>%
-  dplyr::select(Month, Year, temp_1_12, flow_1_12, precip_1_12, visitors, N30_CHRYSOLEPIS, N30_KELLOGGII) %>%
-  tidyr::pivot_longer(c(-Month, -Year), names_to = "covariate", values_to = "value") %>%
-  ggplot(aes(x = Year, y = value, group = Month, color = Month)) +
-  geom_line() +
-  facet_wrap(~ covariate, scales = "free_y") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+# # =============================================================================
+# # COVARIATE COLLINEARITY: CORRELATION MATRIX
+# # =============================================================================
+# # Numeric correlation table
+# incidents %>%
+#   dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
+#   cor(use = "complete.obs") %>%
+#   round(2)
+# 
+# 
+# # Signed correlation plot
+# incidents %>%
+#   dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
+#   cor(use = "complete.obs") %>%
+#   corrplot(
+#     method = "color",
+#     type   = "upper",
+#     tl.cex = 0.7,
+#     addCoef.col = "black",
+#     number.cex  = 0.6
+#   )
+# 
+# # =============================================================================
+# # COVARIATE CORRELATION GROUPED BY MONTH 
+# # =============================================================================
+# 
+# # Select relevant scaled variables
+# scaled_vars <- incidents %>%
+#   dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
+#   dplyr::select(-matches("N30|visitor")) %>%
+#   names()
+# 
+# # Per-month correlation matrices
+# month_cors <- incidents %>%
+#   dplyr::select(Month, all_of(scaled_vars)) %>%
+#   group_by(Month) %>%
+#   group_split() %>%
+#   map(function(df) {
+#     m <- df %>%
+#       dplyr::select(all_of(scaled_vars)) %>%
+#       cor(use = "complete.obs")
+#     list(month = unique(df$Month), cor_matrix = m)
+#   })
+# 
+# # Average correlation across months
+# avg_cor <- month_cors %>%
+#   map("cor_matrix") %>%
+#   reduce(`+`) %>%
+#   `/`(length(month_cors)) %>%
+#   round(2)
+# 
+# # --- Plot 1: Average r across all months ---
+# corrplot(
+#   avg_cor,
+#   method      = "color",
+#   type        = "upper",
+#   tl.cex      = 0.7,
+#   addCoef.col = "black",
+#   number.cex  = 0.6,
+#   title       = "Mean |r| across months",
+#   mar         = c(0, 0, 2, 0)
+# )
+# 
+# 
+# # =============================================================================
+# # WITHIN-MONTH INTERANNUAL VARIANCE
+# # =============================================================================
+# # For each covariate, compute variance within each calendar month across years.
+# # High variance = more interannual signal available for modeling.
+# 
+# # Visual: each line = one month, plotted across years per covariate
+# # Lines with high spread = high interannual variability within that month
+# incidents %>%
+#   dplyr::select(Month, Year, temp_1_12, flow_1_12, precip_1_12, visitors, N30_CHRYSOLEPIS, N30_KELLOGGII) %>%
+#   tidyr::pivot_longer(c(-Month, -Year), names_to = "covariate", values_to = "value") %>%
+#   ggplot(aes(x = Year, y = value, group = Month, color = Month)) +
+#   geom_line() +
+#   facet_wrap(~ covariate, scales = "free_y") +
+#   theme_minimal() +
+#   theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 
 # =============================================================================
