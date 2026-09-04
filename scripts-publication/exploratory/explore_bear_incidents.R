@@ -70,6 +70,36 @@ age_sex_counts <- incident_full %>%
         legend.background = element_blank())
 )
 
+# How does this shake out per individual?
+age_individual_counts <- incident_full %>%
+  filter(!is.na(est_age), !is.na(Sex), !is.na(BearID)) %>%
+  count(est_age, BearID, Sex) %>%
+  mutate(fill_group = as.factor(if_else(n == 1, "Single conflict", as.character(BearID))))
+
+bear_ids <- sort(unique(plot_df$fill_group[
+  plot_df$fill_group != "Single conflict"
+]))
+
+ggplot(age_individual_counts, aes(x = est_age, y = n, fill = fill_group)) +
+  geom_col(position = "identity", width = 0.9) +
+  scale_fill_manual(
+    values = c(
+      "Single conflict" = "grey70",
+      setNames(
+        scales::hue_pal()(length(bear_ids)),
+        bear_ids
+      )
+    )
+  ) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_minimal() +
+  theme(
+    legend.position = c(0.85, 0.7),
+    legend.background = element_blank()
+  )
+
+
 # Conflicts per bear
 conflicts_per_bear <- count(incident_full, BearID, Sex) %>% 
   filter(is.na(BearID) == FALSE)
@@ -240,4 +270,63 @@ model_bin <- glm(conflict_binary ~ Sex + est_year_born,
                  data = conflicts_by_bear_mf)
 
 summary(model_bin)
+
+
+
+# Bring in cleaned incident data
+incident_data <- read.csv("data_cleaned/cleaned_incidents_noRBDB.csv") 
+
+# Group some categories
+incident_data <- incident_data |> 
+  mutate(
+    IncidentTypeCoarse = case_when(
+      IncidentTypeDesc %in% c("Obtained Garbage & Aggression", "Property Damage & Aggression", "Bluff charge/aggression") ~ "Aggression",
+      IncidentTypeDesc %in% c("PI-Required first aid", "PI-Required MD", "Physical contact, no injury") ~ "Injury or contact",
+      IncidentTypeDesc %in% c("Trash Only", "Bear in Dumpster") ~ "Trash only",
+      IncidentTypeDesc %in% c("Property Damage") ~ "Property damage",
+      IncidentTypeDesc %in% c("Incident - No Damage") ~ "Other incident",
+      TRUE ~ IncidentTypeDesc
+    )
+  )
+
+# Summarize conflict types
+incident_counts <- incident_data %>% 
+  count(IncidentTypeCoarse)
+
+ggplot(incident_counts, aes(x = reorder(IncidentTypeCoarse, n), 
+                            y = n)) +
+  geom_col() +
+  geom_text(aes(label = n), hjust = -0.1) +
+  labs(
+    x = "Incident type",
+    y = "Number of incidents"
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black")
+  )
+ggsave("figures/conflict-by-type.png", width = 6, height = 4)
+
+
+
+library(ggbreak)
+
+ggplot(incident_counts,
+       aes(x = reorder(IncidentTypeCoarse, n), y = n)) +
+  geom_col() +
+  labs(
+    x = "Incident type",
+    y = "Number of incidents"
+  ) +
+  scale_y_break(c(100, 1350)) +
+  coord_flip() +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        axis.line = element_line(color = "black"))
+
 

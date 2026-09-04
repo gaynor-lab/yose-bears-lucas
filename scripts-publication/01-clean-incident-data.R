@@ -11,9 +11,9 @@ library(tidyr)
 # Load incident data provided by Park
 incident_data <- read_excel("data_raw/Incidents_2005-2025.xlsx") 
 
-# filter to include January 2010 and beyond
+# filter to include June 2011 and beyond
 incident_data <- incident_data %>%
-  filter(IncidentDate >= as.POSIXct("2010-01-01"))
+  filter(IncidentDate >= as.POSIXct("2011-06-01"))
 
 unique(incident_data$IncidentTypeDesc)
 
@@ -100,7 +100,7 @@ RBDB_data <- read_csv("./data_raw/RBDB Data 1995-2025.csv") %>%
     DATE = as.Date(DATE, format = "%Y-%m-%d"),
     year_month = format(DATE, "%Y-%m")
   ) %>%
-  filter(DATE > as.Date("2010-01-01")) %>%
+  filter(DATE > as.Date("2011-06-01")) %>%
   distinct()
 
 # table(RBDB_data$DATE) # check for outlier dates
