@@ -1,5 +1,5 @@
 # =============================================================================
-# Covariate Preparation, Selection & Fitting
+# Model fitting
 # =============================================================================
 library(mgcv)
 library(glmmTMB)
@@ -172,16 +172,16 @@ incidents$time <- seq_len(nrow(incidents))
 # =============================================================================
 # Assess zero-inflation structure
 # =============================================================================
-incidents %>%
-  ggplot(aes(x = date, y = number_incidents)) +
-  geom_line(color = "grey40") +
-  geom_point(aes(color = Month), size = 1.8) +
-  labs(
-    title = "Monthly bear incidents, Yosemite",
-    x = "Date", y = "Number of incidents"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "right")
+# incidents %>%
+#   ggplot(aes(x = date, y = number_incidents)) +
+#   geom_line(color = "grey40") +
+#   geom_point(aes(color = Month), size = 1.8) +
+#   labs(
+#     title = "Monthly bear incidents, Yosemite",
+#     x = "Date", y = "Number of incidents"
+#   ) +
+#   theme_minimal() +
+#   theme(legend.position = "right")
 
 # 0s in winter months (maybe the seasonal spline isn't this best for this then since only 1 part of year)
 
@@ -268,7 +268,32 @@ ggplot(cond_eff_food %>%
   coord_flip() +
   geom_hline(yintercept = 0, linetype = "dashed", color = "blue") +
   labs(x = NULL, y = "Estimate") +
-  theme_bw()
+  theme_()
+
+coef_plot_food <- ggplot(cond_eff_food %>% 
+                           filter(component == "cond") %>% 
+                           filter(!str_detect(term, "Intercept|poly\\(time")) %>%
+                           mutate(term = dplyr::recode(term,
+                                                       "visitors_scaled" = "Visitors",
+                                                       "precip_1_12_scaled" = "Prior precipitation",
+                                                       "N30_CHRYSOLEPIS_scaled" = "Canyon live oak index",
+                                                       "N30_KELLOGGII_scaled" = "California black oak index"),
+                                  term = factor(term, levels = rev(c("Visitors", 
+                                                                     "Prior precipitation", 
+                                                                     "Canyon live oak index", 
+                                                                     "California black oak index")))),
+                         aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "darkolivegreen", size = 0.7) +
+  labs(
+    x = "Estimate (log scale)",
+    y = NULL
+  ) +
+  theme_classic()
+coef_plot_food
+
+ggsave("figures/food_GAM-coef_plot.png", coef_plot_food,
+       width = 11, height = 7, dpi = 300)
 
 # HBV
 cond_eff_hbv <- broom.mixed::tidy(
@@ -279,25 +304,38 @@ cond_eff_hbv <- broom.mixed::tidy(
   filter(!grepl("^s_month_", term))
 
 
-ggplot(cond_eff_hbv %>% 
-         filter(component == "cond") %>% 
-         filter(!str_detect(term, "Intercept|poly\\(time")),
-       aes(x = reorder(term, estimate), y = estimate)) +
-  geom_point() +
-  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
-  coord_flip() +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "blue") +
-  labs(x = NULL, y = "Estimate") +
-  theme_bw()
+coef_plot_hbv <- ggplot(cond_eff_hbv %>% 
+                           filter(component == "cond") %>% 
+                           filter(!str_detect(term, "Intercept|poly\\(time")) %>%
+                           mutate(term = dplyr::recode(term,
+                                                       "visitors_scaled" = "Visitors",
+                                                       "precip_1_12_scaled" = "Prior precipitation",
+                                                       "N30_CHRYSOLEPIS_scaled" = "Canyon live oak index",
+                                                       "N30_KELLOGGII_scaled" = "California black oak index"),
+                                  term = factor(term, levels = rev(c("Visitors", 
+                                                                     "Prior precipitation", 
+                                                                     "Canyon live oak index", 
+                                                                     "California black oak index")))),
+                         aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "navy", size = 0.7) +
+  labs(
+    x = "Estimate (log scale)",
+    y = NULL
+  ) +
+  theme_classic()
+coef_plot_hbv
 
+ggsave("figures/HBV_GAM-coef_plot.png", coef_plot_hbv,
+       width = 11, height = 7, dpi = 300)
 # -------------------------
 # Observed vs predicted
 # -------------------------
 # Food
 incidents$predicted <- predict(food_full_gam, type = "response")
 
-ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
-  geom_line(aes(y = number_incidents, color = "Observed"), alpha = 0.6) +
+obs_pred_food <- ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
+  geom_line(aes(y = number_incidents, color = "Observed"), linewidth = .7) +
   geom_line(aes(y = predicted, color = "Predicted"), linewidth = 1) +
   labs(
     y = "Incidents",
@@ -306,17 +344,26 @@ ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
   ) +
   scale_color_manual(
     values = c(
-      "Observed" = "black",
-      "Predicted" = "red"
+      "Observed" = "darkolivegreen",
+      "Predicted" = "black"
     )
   ) +
-  theme_minimal()
+  scale_x_date(
+    date_breaks = "1 year",
+    date_labels = "%Y"
+  ) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+obs_pred_food
+
+ggsave("figures/food_obs-pred.png", obs_pred_food,
+       width = 10, height = 6, dpi = 300)
 
 # HBV
 incidents$predicted <- predict(HBV_full_gam, type = "response")
 
-ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
-  geom_line(aes(y = RBDB_incidents, color = "Observed"), alpha = 0.6) +
+obs_pred_hbv <- ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
+  geom_line(aes(y = number_incidents, color = "Observed"), linewidth = .7) +
   geom_line(aes(y = predicted, color = "Predicted"), linewidth = 1) +
   labs(
     y = "Incidents",
@@ -325,11 +372,20 @@ ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
   ) +
   scale_color_manual(
     values = c(
-      "Observed" = "black",
-      "Predicted" = "red"
+      "Observed" = "navy",
+      "Predicted" = "black"
     )
   ) +
-  theme_minimal()
+  scale_x_date(
+    date_breaks = "1 year",
+    date_labels = "%Y"
+  ) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+obs_pred_hbv
+
+ggsave("figures/hbv_obs-pred.png", obs_pred_hbv,
+       width = 10, height = 6, dpi = 300)
 
 # =============================================================================
 # Diagnostics

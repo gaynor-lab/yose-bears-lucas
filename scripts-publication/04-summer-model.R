@@ -14,8 +14,8 @@ incidents <- read_csv("data_cleaned/monthly_incidents_covar_cleaned.csv") %>%
   mutate(
     Year  = as.factor(Year),
     Month = as.factor(Month)
-  ) #%>%
-  #filter(!(Month_Year >= "2020-03" & Month_Year <= "2020-06"))
+  ) %>% 
+  filter(Year != 2010) #filter out 2010, keep 2020
 
 # Look at conflicts per month
 monthly_totals <- incidents %>%
@@ -94,18 +94,8 @@ incidents_yearly <- incidents_summer %>%
        food_incidents_summer = sum(number_incidents, na.rm = TRUE),
        HBV_incidents_summer = sum(RBDB_incidents, na.rm = TRUE),
     visitors       = sum(visitors, na.rm = TRUE),
-    precip_1_3     = sum(precip_1_3, na.rm = TRUE),
-    temp_1_3      = mean(temp_1_3, na.rm = TRUE)
   )  %>%
   left_join(growing_season, by = "Year")
-
-# Remove 2020
-
-#incidents_yearly <- incidents_yearly %>% filter(Year != "2020")
-
-# =============================================================================
-# 
-# =============================================================================
 
 
 # =============================================================================
@@ -117,7 +107,7 @@ incidents_yearly <- incidents_summer %>%
 # scale() returns a matrix; [, 1] drops the matrix dimension to a plain vector.
 incidents_yearly <- incidents_yearly %>%
   mutate(across(
-    where(is.numeric) & !contains("incidents") & !contains("days_month"),
+    where(is.numeric) & !contains("incidents"),
     ~ scale(.)[, 1],
     .names = "{.col}_scaled"
   ))
@@ -130,7 +120,7 @@ colnames(incidents_yearly) # checking
 # =============================================================================
 # Signed correlation plot
 incidents_yearly %>%
-  dplyr::select(visitors_scaled, precip_1_3_scaled, temp_1_3_scaled, growing_season_rain_scaled, growing_season_temp_scaled) %>%
+  dplyr::select(visitors_scaled, growing_season_rain_scaled, growing_season_temp_scaled) %>%
   cor(use = "pairwise.complete.obs") %>%
   corrplot::corrplot(
     method = "color",
@@ -139,13 +129,13 @@ incidents_yearly %>%
     addCoef.col = "black",
     number.cex  = 0.6
   )
-#temp and precip have -0.72
+#temp and precip have -0.56
 
 # =============================================================================
 # Look at variation
 # =============================================================================
 incidents_yearly %>%
-  dplyr::select(Year, visitors, precip_1_3, temp_1_3, growing_season_rain_scaled, growing_season_temp_scaled) %>%
+  dplyr::select(Year, visitors, growing_season_rain_scaled, growing_season_temp_scaled) %>%
   tidyr::pivot_longer(-Year, names_to = "covariate", values_to = "value") %>%
   ggplot(aes(x = Year, y = value, group = covariate)) +
   geom_line(color = "steelblue") +
@@ -158,7 +148,7 @@ incidents_yearly %>%
 
 # Summary statistics for each covariate (raw, unscaled)
 incidents_yearly %>%
-  dplyr::select(visitors, precip_1_3, temp_1_3, growing_season_rain, growing_season_temp) %>%
+  dplyr::select(visitors, growing_season_rain, growing_season_temp) %>%
   summarise(across(
     everything(),
     list(
@@ -180,20 +170,19 @@ incidents_yearly %>%
 # Check distributions of covariates
 # =============================================================================
 incidents_yearly %>%
-  dplyr::select(visitors, precip_1_3, temp_1_3) %>%
+  dplyr::select(visitors, growing_season_rain, growing_season_temp) %>%
   summarise(across(everything(), list(
     skewness = ~ (sum((. - mean(.))^3) / length(.)) / (sd(.)^3)
   )))
 
 incidents_yearly %>%
-  dplyr::select(visitors, precip_1_3, temp_1_3) %>%
+  dplyr::select(visitors, growing_season_rain, growing_season_temp) %>%
   tidyr::pivot_longer(everything(), names_to = "covariate", values_to = "value") %>%
   ggplot(aes(x = value)) +
   geom_histogram(bins = 8, fill = "steelblue") +
   facet_wrap(~ covariate, scales = "free") +
   theme_minimal()
 
-hist(incidents_yearly$precip_1_3)
 
 # =============================================================================
 # Check which GLM family
@@ -218,205 +207,6 @@ incidents_yearly %>%
 incidents_yearly <- incidents_yearly[order(incidents_yearly$Year), ]
 incidents_yearly$time <- seq_len(nrow(incidents_yearly)) # make as number
 
-# =============================================================================
-# Run model
-# =============================================================================
-# mod_yearly_time <- glmmTMB(
-#   total_incidents_summer ~ visitors_scaled + precip_1_3_scaled +
-#     poly(time, 2),
-#   family = nbinom2(),
-#   data = incidents_yearly
-# )
-
-mod_yearly_gs <- glmmTMB(
-  total_incidents_summer ~ visitors_scaled + growing_season_rain_scaled +
-    poly(time, 2),
-  family = nbinom2(),
-  data = incidents_yearly
-)
-
-# mod_yearly <- glmmTMB(
-#   total_incidents_summer ~ visitors_scaled + precip_1_3_scaled,
-#   family = nbinom2(),
-#   data = incidents_yearly
-# )
-# 
- #AIC(mod_yearly_gs, mod_yearly_time) # with time is much lower 
-# 
-# summary(mod_yearly) 
-# 
-# 
-# # mod_no_visitors <- glmmTMB(
-# #   total_incidents_summer ~ flow_4_12_scaled + temp_4_12_scaled,
-# #   family = nbinom2(),
-# #   data = incidents_yearly
-# # )
-# # summary(mod_no_visitors)
-# # 
-# # AIC(mod_yearly, mod_no_visitors) # only 2 AIC lower without visitors
-# 
-# sim_res <- simulateResiduals(mod_yearly)
-# plot(sim_res) #lower quantile is significantly deviant
-# testDispersion(sim_res)
-# 
-# plotResiduals(sim_res, incidents_yearly$precip_1_3_scaled) # lower quantile signficant 
-# #plotResiduals(sim_res, incidents_yearly$temp_1_3_scaled)
-# plotResiduals(sim_res, incidents_yearly$visitors_scaled) # good
-
-# WITH TIME
-# sim_res <- simulateResiduals(mod_yearly_time)
-# plot(sim_res) #all good
-# testDispersion(sim_res)
-# 
-# plotResiduals(sim_res, incidents_yearly$precip_1_3_scaled) #all good
-# #plotResiduals(sim_res, incidents_yearly$temp_1_3_scaled)
-# plotResiduals(sim_res, incidents_yearly$visitors_scaled) #all good
-# 
-# plotResiduals(sim_res, incidents_yearly$time) #all good
-# 
-# # temporal autocorrelation
-# testTemporalAutocorrelation(sim_res, time = incidents_yearly$time)
-# plotResiduals(sim_res, incidents_yearly$time) # all good
-# acf(residuals(sim_res)) # all good
-
-# no temporal autocorrelation so we don't need ot add in lag term
-
-# WITH GS
-sim_res <- simulateResiduals(mod_yearly_gs)
-plot(sim_res) #all good
-testDispersion(sim_res)
-
-# temporal autocorrelation
-testTemporalAutocorrelation(sim_res, time = incidents_yearly$time)
-plotResiduals(sim_res, incidents_yearly$time) # all good
-acf(residuals(sim_res)) # all good
-
-# =============================================================================
-# Plot
-# =============================================================================
-#---------------------------------
-# Without time
-#---------------------------------
-# # coefficient estimates
-# coef_df <- tidy(mod_yearly, effects = "fixed", conf.int = TRUE) %>%
-#   filter(term != "(Intercept)") %>%  # usually excluded since it's on a different scale
-#   filter(!grepl("time", term))
-# 
-# ggplot(coef_df, aes(x = estimate, y = reorder(term, estimate))) +
-#   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
-#   geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "steelblue", size = 0.7) +
-#   labs(
-#     title = "Model Coefficient Estimates",
-#     x = "Estimate (log scale)",
-#     y = NULL
-#   ) +
-#   theme_minimal()
-# 
-# # observed vs predicted
-# incidents_yearly <- incidents_yearly %>%
-#   mutate(predicted = predict(mod_yearly, type = "response"))
-# 
-# incidents_yearly %>%
-#   dplyr::select(Year, total_incidents_summer, predicted) %>%
-#   tidyr::pivot_longer(-Year, names_to = "type", values_to = "incidents") %>%
-#   ggplot(aes(x = Year, y = incidents, color = type, group = type)) +
-#   geom_line(linewidth = 1) +
-#   geom_point(size = 2) +
-#   scale_color_manual(
-#     values = c("total_incidents_summer" = "black", "predicted" = "red"),
-#     labels = c("Predicted", "Observed")
-#   ) +
-#   labs(
-#     title = "Observed vs. Predicted Summer Incidents by Year",
-#     x = "Year",
-#     y = "Total Incidents",
-#     color = NULL
-#   ) +
-#   theme_minimal() +
-#   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-#---------------------------------
-# With time
-#---------------------------------
-# # coefficient estimates
-# coef_df <- tidy(mod_yearly_time, effects = "fixed", conf.int = TRUE) %>%
-#   filter(term != "(Intercept)") %>%  # usually excluded since it's on a different scale
-#   filter(!grepl("time", term))
-# 
-# ggplot(coef_df, aes(x = estimate, y = reorder(term, estimate))) +
-#   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
-#   geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "steelblue", size = 0.7) +
-#   labs(
-#     title = "Model Coefficient Estimates",
-#     x = "Estimate (log scale)",
-#     y = NULL
-#   ) +
-#   theme_minimal()
-# 
-# # observed vs predicted
-# incidents_yearly <- incidents_yearly %>%
-#   mutate(predicted = predict(mod_yearly_time, type = "response"))
-# 
-# incidents_yearly %>%
-#   dplyr::select(Year, total_incidents_summer, predicted) %>%
-#   tidyr::pivot_longer(-Year, names_to = "type", values_to = "incidents") %>%
-#   ggplot(aes(x = Year, y = incidents, color = type, group = type)) +
-#   geom_line(linewidth = 1) +
-#   geom_point(size = 2) +
-#   scale_color_manual(
-#     values = c("total_incidents_summer" = "black", "predicted" = "red"),
-#     labels = c("Predicted", "Observed")
-#   ) +
-#   labs(
-#     title = "Observed vs. Predicted Summer Incidents by Year",
-#     x = "Year",
-#     y = "Total Incidents",
-#     color = NULL
-#   ) +
-#   theme_minimal() +
-#   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-#---------------------------------
-# With GS
-#---------------------------------
-# coefficient estimates
-coef_df <- tidy(mod_yearly_gs, effects = "fixed", conf.int = TRUE) %>%
-  filter(term != "(Intercept)") %>%  # usually excluded since it's on a different scale
-  filter(!grepl("time", term))
-
-ggplot(coef_df, aes(x = estimate, y = reorder(term, estimate))) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
-  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "steelblue", size = 0.7) +
-  labs(
-    title = "Model Coefficient Estimates",
-    x = "Estimate (log scale)",
-    y = NULL
-  ) +
-  theme_minimal()
-
-# observed vs predicted
-incidents_yearly <- incidents_yearly %>%
-  mutate(predicted = predict(mod_yearly_gs, type = "response"))
-
-incidents_yearly %>%
-  dplyr::select(Year, total_incidents_summer, predicted) %>%
-  tidyr::pivot_longer(-Year, names_to = "type", values_to = "incidents") %>%
-  ggplot(aes(x = Year, y = incidents, color = type, group = type)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 2) +
-  scale_color_manual(
-    values = c("total_incidents_summer" = "black", "predicted" = "red"),
-    labels = c("Predicted", "Observed")
-  ) +
-  labs(
-    title = "Observed vs. Predicted Summer Incidents by Year",
-    x = "Year",
-    y = "Total Incidents",
-    color = NULL
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
 #=============================================
 # Food only
 #=============================================
@@ -435,7 +225,7 @@ testDispersion(sim_res)
 
 # temporal autocorrelation
 testTemporalAutocorrelation(sim_res, time = incidents_yearly$time)
-plotResiduals(sim_res, incidents_yearly$time) # all good
+plotResiduals(sim_res, incidents_yearly$time) # lower quantile significant
 acf(residuals(sim_res)) # all good
 
 # coefficient estimates
@@ -443,38 +233,49 @@ coef_df <- tidy(food_mod, effects = "fixed", conf.int = TRUE) %>%
   filter(term != "(Intercept)") %>%  # usually excluded since it's on a different scale
   filter(!grepl("time", term))
 
-ggplot(coef_df, aes(x = estimate, y = reorder(term, estimate))) +
+
+coef_plot_food <- ggplot(coef_df, aes(x = estimate, 
+                    y = reorder(dplyr::recode(term,
+                                       "visitors_scaled" = "Visitors",
+                                       "growing_season_rain_scaled" = "Growing-season precipitation"
+                    ), estimate))) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
-  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "steelblue", size = 0.7) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "darkolivegreen", size = 0.7) +
   labs(
-    title = "Model Coefficient Estimates",
     x = "Estimate (log scale)",
     y = NULL
   ) +
-  theme_minimal()
+  theme_classic()
+coef_plot_food
+
+ggsave("figures/food_summer-coef_plot.png", coef_plot_food,
+       width = 8, height = 5, dpi = 300)
 
 # observed vs predicted
 incidents_yearly <- incidents_yearly %>%
   mutate(predicted = predict(food_mod, type = "response"))
 
-incidents_yearly %>%
+obs_pred_food <- incidents_yearly %>%
   dplyr::select(Year, food_incidents_summer, predicted) %>%
   tidyr::pivot_longer(-Year, names_to = "type", values_to = "incidents") %>%
   ggplot(aes(x = Year, y = incidents, color = type, group = type)) +
   geom_line(linewidth = 1) +
   geom_point(size = 2) +
   scale_color_manual(
-    values = c("food_incidents_summer" = "black", "predicted" = "red"),
-    labels = c("Predicted", "Observed")
+    values = c("food_incidents_summer" = "darkolivegreen", "predicted" = "black"),
+    labels = c("Observed", "Predicted")
   ) +
   labs(
-    title = "Observed vs. Predicted Summer Incidents by Year",
     x = "Year",
-    y = "Total Incidents",
+    y = "Incidents",
     color = NULL
   ) +
-  theme_minimal() +
+  theme_classic() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+obs_pred_food
+
+ggsave("figures/food_summer-obs-pred.png", obs_pred_food,
+       width = 10, height = 6, dpi = 300)
 
 #=============================================
 # HBV only
@@ -501,35 +302,44 @@ coef_df <- tidy(hbv_mod, effects = "fixed", conf.int = TRUE) %>%
   filter(term != "(Intercept)") %>%  # usually excluded since it's on a different scale
   filter(!grepl("time", term))
 
-ggplot(coef_df, aes(x = estimate, y = reorder(term, estimate))) +
+coef_plot_hbv <- ggplot(coef_df, aes(x = estimate, 
+                    y = reorder(dplyr::recode(term,
+                                       "visitors_scaled" = "Visitors",
+                                       "growing_season_rain_scaled" = "Growing-season precipitation"
+                    ), estimate))) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
-  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "steelblue", size = 0.7) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "navy", size = 0.7) +
   labs(
-    title = "Model Coefficient Estimates",
     x = "Estimate (log scale)",
     y = NULL
   ) +
-  theme_minimal()
+  theme_classic()
+coef_plot_hbv
+
+ggsave("figures/hbv_summer-coef_plot.png", coef_plot_food,
+       width = 8, height = 5, dpi = 300)
 
 # observed vs predicted
 incidents_yearly <- incidents_yearly %>%
   mutate(predicted = predict(hbv_mod, type = "response"))
 
-incidents_yearly %>%
+obs_pred_hbv <- incidents_yearly %>%
   dplyr::select(Year, HBV_incidents_summer, predicted) %>%
   tidyr::pivot_longer(-Year, names_to = "type", values_to = "incidents") %>%
   ggplot(aes(x = Year, y = incidents, color = type, group = type)) +
   geom_line(linewidth = 1) +
   geom_point(size = 2) +
   scale_color_manual(
-    values = c("HBV_incidents_summer" = "black", "predicted" = "red"),
-    labels = c("Predicted", "Observed")
+    values = c("HBV_incidents_summer" = "navy", "predicted" = "black"),
+    labels = c("Observed", "Predicted")
   ) +
   labs(
-    title = "Observed vs. Predicted Summer Incidents by Year",
     x = "Year",
-    y = "Total Incidents",
+    y = "Incidents",
     color = NULL
   ) +
-  theme_minimal() +
+  theme_classic() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+ggsave("figures/hbv_summer-obs-pred.png", obs_pred_hbv,
+         width = 10, height = 6, dpi = 300)

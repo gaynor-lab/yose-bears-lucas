@@ -8,7 +8,7 @@ library(ggplot2)
 library(scales)    # label_number
 library(patchwork)
 
-source("scripts-publication/gamm-model-testing.R") # read in models
+source("scripts-publication/03-annual-model.R") # read in models
 
 REF_MONTH <- 7  # July
 
@@ -124,7 +124,7 @@ p_visitors <- ggplot(visitor_grid, aes(visitors_original, fit)) +
   geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "darkolivegreen", alpha = 0.2) +
   geom_line(linewidth = 1, color = "darkolivegreen") +
   scale_x_continuous(labels = label_number(scale = 1/1000)) +
-  labs(x = "Visitors (thousands)", y = "Predicted incidents") +
+  labs(x = "Visitors (x 1,000)", y = "Predicted incidents") +
   theme_classic()
 
 ## -----------------------------------------------------------------
@@ -268,7 +268,7 @@ multi_panel_plot <-
 multi_panel_plot
 
 ggsave("figures/food_gam-marginal-effects.png", multi_panel_plot,
-        width = 15, height = 8, dpi = 300)
+        width = 12, height = 8, dpi = 300)
 
 ## =================================================================
 ## HBV incidents
@@ -319,7 +319,7 @@ p_visitors <- ggplot(visitor_grid, aes(visitors_original, fit)) +
   geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "navy", alpha = 0.2) +
   geom_line(linewidth = 1, color = "navy") +
   scale_x_continuous(labels = label_number(scale = 1/1000)) +
-  labs(x = "Visitors (thousands)", y = "Predicted incidents") +
+  labs(x = "Visitors (x 1,000)", y = "Predicted incidents") +
   theme_classic()
 
 ## -----------------------------------------------------------------
@@ -452,4 +452,4 @@ multi_panel_plot <-
 multi_panel_plot
 
 ggsave("figures/hbv_gam-marginal-effects.png", multi_panel_plot,
-       width = 15, height = 8, dpi = 300)
+       width = 12, height = 8, dpi = 300)
