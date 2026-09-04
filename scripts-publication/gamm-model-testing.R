@@ -20,7 +20,7 @@ library(tidyr)
 library(stringr)
 
 # =============================================================================
-# LOAD DATA AND REMOVE COVID CLOSURE MONTHS
+# LOAD DATA, REMOVE COVID CLOSURE MONTHS & 2010
 # =============================================================================
 # March–June 2020 are excluded because Yosemite was closed to visitors during
 # this period, making visitation and incident counts unrepresentative of normal
@@ -31,29 +31,9 @@ incidents <- read_csv("data_cleaned/monthly_incidents_covar_cleaned.csv") %>%
     Year  = as.factor(Year),
     Month = as.factor(Month)
   ) %>%
-  filter(!(Month_Year >= "2020-03" & Month_Year <= "2020-06"))
+  filter(!(Month_Year >= "2020-03" & Month_Year <= "2020-06"),
+         !Year == 2010)
 
-# =============================================================================
-# Add variable of visitor deviation 
-# =============================================================================
-# Compute long-run average visitors for each calendar month
-monthly_means <- incidents %>%
-  group_by(Month) %>%
-  summarise(mean_visitors = mean(visitors, na.rm = TRUE), 
-            mean_chrysolepis = mean(N30_CHRYSOLEPIS, na.rm = TRUE),
-            mean_kellogii    = mean(N30_KELLOGGII, na.rm = TRUE),
-            .groups = "drop")
-
-# Join back and compute deviation from that month's typical average
-incidents <- incidents %>%
-  left_join(monthly_means, by = "Month") %>%
-  mutate(visitor_deviation = visitors - mean_visitors,
-         chrysolepis_deviation = N30_CHRYSOLEPIS - mean_chrysolepis,
-         kellogii_deviation    = N30_KELLOGGII - mean_kellogii)
-
-visit <- incidents %>% dplyr::select(Month_Year, Year, Month, visitors, mean_visitors, visitor_deviation) %>% arrange(abs(visitor_deviation))
-
-str(incidents$kellogii_deviation)
 # =============================================================================
 # ADD OFFSET AND SCALE COVARIATES
 # =============================================================================
@@ -87,14 +67,14 @@ colnames(incidents) # checking
 # =============================================================================
 # Numeric correlation table
 incidents %>%
-  dplyr::select(evi_mean_scaled, N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
+  dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
   cor(use = "complete.obs") %>%
   round(2)
 
 
 # Signed correlation plot
 incidents %>%
-  dplyr::select(evi_mean_scaled, N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
+  dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
   cor(use = "complete.obs") %>%
   corrplot(
     method = "color",
@@ -110,7 +90,7 @@ incidents %>%
 
 # Select relevant scaled variables
 scaled_vars <- incidents %>%
-  dplyr::select(evi_mean_scaled, N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
+  dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
   dplyr::select(-matches("N30|visitor")) %>%
   names()
 
@@ -155,7 +135,7 @@ corrplot(
 # Visual: each line = one month, plotted across years per covariate
 # Lines with high spread = high interannual variability within that month
 incidents %>%
-  dplyr::select(Month, Year, temp_1_12, flow_1_12, precip_1_12, visitors, N30_CHRYSOLEPIS, N30_KELLOGGII, kellogii_deviation, chrysolepis_deviation, visitor_deviation) %>%
+  dplyr::select(Month, Year, temp_1_12, flow_1_12, precip_1_12, visitors, N30_CHRYSOLEPIS, N30_KELLOGGII) %>%
   tidyr::pivot_longer(c(-Month, -Year), names_to = "covariate", values_to = "value") %>%
   ggplot(aes(x = Year, y = value, group = Month, color = Month)) +
   geom_line() +
@@ -214,40 +194,6 @@ incidents %>%
 # Model
 # =============================================================================
 
-full_gam_dev <- glmmTMB(
-  
-  total_incidents ~
-    
-    # covariates of interest
-    precip_1_12_scaled +
-    #flow_1_12_scaled + 
-    #evi_mean_scaled +
-    temp_1_12_scaled + 
-   # visitors_scaled +
-    visitor_deviation_scaled +
-   # N30_KELLOGGII_scaled +
-    kellogii_deviation_scaled +
-    chrysolepis_deviation_scaled +
-    #N30_CHRYSOLEPIS_scaled + 
-    
-    
-    # month basis functions
-    s_month_1 + s_month_2 + s_month_3 + s_month_4 +
-    
-    # add smooth term for time
-    poly(time, 2) +
-    
-    # autoregressive term
-    ar1(time + 0 | 1),
-  
-  # zero-inflation formula
-  ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
-  
-  family = nbinom2,
-  data = incidents
-  
-)
-
 full_gam <- glmmTMB(
   
   total_incidents ~
@@ -255,13 +201,9 @@ full_gam <- glmmTMB(
     # covariates of interest
     precip_1_12_scaled +
     #flow_1_12_scaled + 
-    #evi_mean_scaled +
-    temp_1_12_scaled + 
+   # temp_1_12_scaled + 
      visitors_scaled +
-   # visitor_deviation_scaled +
      N30_KELLOGGII_scaled +
-   # kellogii_deviation_scaled +
-    #chrysolepis_deviation_scaled +
     N30_CHRYSOLEPIS_scaled + 
     
     
@@ -282,10 +224,7 @@ full_gam <- glmmTMB(
   
 )
 
-
-summary(full_gam_dev)
 summary(full_gam)
-AIC(full_gam_dev, full_gam)
 
 # =============================================================================
 # Diagnostics
@@ -316,31 +255,6 @@ acf(residuals(sim_res))
 plotResiduals(sim_res, incidents$Month) # all good
 plotResiduals(sim_res, incidents$Year)  # all good
 
-# ------------------
-# Full gam_dev
-# ------------------
-# residuals
-sim_res <- simulateResiduals(full_gam_dev, n = 1000)
-
-plot(sim_res) # all good 
-
-# uniformity (overall fit)
-testUniformity(sim_res) # all good
-
-# over/underdispersion
-testDispersion(sim_res)  
-
-# zero-inflation
-testZeroInflation(sim_res) 
-
-# temporal autocorrelation
-testTemporalAutocorrelation(sim_res, time = incidents$time) # significantly deviant
-plotResiduals(sim_res, incidents$time)  #looks good
-acf(residuals(sim_res))
-
-# Check residuals against individual predictors to spot remaining patterns
-plotResiduals(sim_res, incidents$Month)
-plotResiduals(sim_res, incidents$Year) 
 
 # =============================================================================
 # OBSERVED VS. PREDICTED
@@ -389,28 +303,6 @@ ggplot(cond_eff %>%
   theme_bw()
 
 
-cond_eff_dev <- broom.mixed::tidy(
-  full_gam_dev,
-  effects = "fixed",
-  conf.int = TRUE
-)  %>%
-  filter(!grepl("^s_month_", term))
-
-
-ggplot(cond_eff_dev %>% 
-         filter(component == "cond") %>% 
-         filter(!str_detect(term, "Intercept|poly\\(time")),
-       aes(x = reorder(term, estimate), y = estimate)) +
-  geom_point() +
-  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
-  coord_flip() +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "blue") +
-  labs(x = NULL, y = "Estimate") +
-  theme_bw()
-
-hist(incidents$visitor_deviation_scaled)
-hist(incidents$visitor_deviation)
-
 ## CALCULATE PARTIAL R-SQUARED
 #ALL FROM COPILOT BELOW, R-SQUARED ARE TOO HIGH TO BE INFORMATIVE SO WE ALSO LOOKED AT LOG LIKELIHOOD
 
@@ -431,11 +323,11 @@ m_no_precip <- update(
     precip_1_12_scaled
 )
 
-m_no_temp <- update(
-  m_full,
-  . ~ . -
-   temp_1_12_scaled
-)
+# m_no_temp <- update(
+#   m_full,
+#   . ~ . -
+#    temp_1_12_scaled
+# )
 
 m_no_visitor <- update(
   m_full,
@@ -493,7 +385,7 @@ anova(m_full, m_no_time)
 LR_time <- 2 * (logLik(m_full) - logLik(m_no_time))
 LR_month <- 2 * (logLik(m_full) - logLik(m_no_month))
 LR_precip <- 2 * (logLik(m_full) - logLik(m_no_precip))
-LR_temp <- 2 * (logLik(m_full) - logLik(m_no_temp))
+#LR_temp <- 2 * (logLik(m_full) - logLik(m_no_temp))
 LR_visitor <- 2 * (logLik(m_full) - logLik(m_no_visitor))
 LR_kell <- 2 * (logLik(m_full) - logLik(m_no_kell))
 LR_chry <- 2 * (logLik(m_full) - logLik(m_no_chry))
@@ -502,7 +394,7 @@ LRs <- c(
   time = LR_time,
   month = LR_month,
   precip = LR_precip,
-  temp = LR_temp,
+ # temp = LR_temp,
   visitor = LR_visitor,
   kellogii = LR_kell,
   chry = LR_chry
@@ -521,13 +413,9 @@ food_full_gam <- glmmTMB(
     # covariates of interest
     precip_1_12_scaled +
     #flow_1_12_scaled + 
-    #evi_mean_scaled +
-    temp_1_12_scaled + 
+   # temp_1_12_scaled + 
     visitors_scaled +
-    # visitor_deviation_scaled +
     N30_KELLOGGII_scaled +
-    # kellogii_deviation_scaled +
-    #chrysolepis_deviation_scaled +
     N30_CHRYSOLEPIS_scaled + 
     
     
@@ -557,7 +445,7 @@ HBV_full_gam <- glmmTMB(
     precip_1_12_scaled +
     #flow_1_12_scaled + 
     #evi_mean_scaled +
-    temp_1_12_scaled + 
+   # temp_1_12_scaled + 
     visitors_scaled +
     # visitor_deviation_scaled +
     N30_KELLOGGII_scaled +
@@ -586,7 +474,6 @@ HBV_full_gam <- glmmTMB(
 # -------------------------
 # Look at coefficient estimates
 # -------------------------
-
 # food
 cond_eff_food <- broom.mixed::tidy(
   food_full_gam,
@@ -880,12 +767,12 @@ testZeroInflation(sim_res)
 
 # temporal autocorrelation
 testTemporalAutocorrelation(sim_res, time = incidents$time)
-plotResiduals(sim_res, incidents$time) # all good
+plotResiduals(sim_res, incidents$time) 
 acf(residuals(sim_res)) 
 
 # Check residuals against individual predictors to spot remaining patterns
 plotResiduals(sim_res, incidents$Month) # all good
-plotResiduals(sim_res, incidents$Year)  # all good
+plotResiduals(sim_res, incidents$Year)  # 2017 deviates
 
 # -------------------------
 # HBV
@@ -914,4 +801,79 @@ acf(residuals(sim_res))
 plotResiduals(sim_res, incidents$Month) # all good
 plotResiduals(sim_res, incidents$Year)  # all good
 
+
+# =================================
+# Marginal effects plots
+# =================================
+# -------------------------
+# Food
+# -------------------------
+library(glmmTMB)
+library(ggeffects)
+library(ggplot2)
+library(patchwork)
+
+# ------------------------------------------------------------------
+# 1. Get marginal effects (population-level predictions)
+# ------------------------------------------------------------------
+# type = "fixed" -> predictions from the fixed-effect (conditional) part
+#   of the model only, ignoring the ar1(time + 0 | 1) random effect.
+#   This is what you want for a marginal effects plot: the ar1 term
+#   describes residual temporal autocorrelation, not a covariate effect,
+#   and averaging/holding it at 0 gives the population-average response.
+# The zero-inflation component is still incorporated automatically,
+#   so these are marginal predictions of number_incidents itself
+#   (not just the conditional-on-nonzero count).
+
+covariates <- c(
+  "precip_1_12_scaled",
+  "visitors_scaled",
+  "N30_KELLOGGII_scaled",
+  "N30_CHRYSOLEPIS_scaled"
+)
+
+me_list <- lapply(covariates, function(v) {
+  ggpredict(food_full_gam, terms = paste0(v, " [all]"), type = "fixed")
+})
+names(me_list) <- covariates
+
+# ------------------------------------------------------------------
+# 2. Optional: back-transform scaled x-axis to original units
+# ------------------------------------------------------------------
+# If you scaled predictors with scale(x), the attributes are stored on
+# the original scaled vector. If those vectors (or their center/scale
+# attributes) are still available, you can convert the plotted x-axis
+# back to natural units. Fill in the correct source object per variable
+# if you want this — otherwise the plots below stay on the scaled axis.
+#
+unscale <- function(x_scaled, orig_var) {
+  ctr <- attr(orig_var, "scaled:center")
+  scl <- attr(orig_var, "scaled:scale")
+  x_scaled * scl + ctr
+}
+# Example:
+# me_list$precip_1_12_scaled$x <- unscale(me_list$precip_1_12_scaled$x,
+#                                          incidents$precip_1_12_scaled)
+
+# ------------------------------------------------------------------
+# 3. Plot each marginal effect
+# ------------------------------------------------------------------
+pretty_labels <- c(
+  precip_1_12_scaled     = "Precipitation (1–12 mo, scaled)",
+  visitors_scaled        = "Visitors (scaled)",
+  N30_KELLOGGII_scaled   = "Q. kelloggii mast, 30 m (scaled)",
+  N30_CHRYSOLEPIS_scaled = "C. chrysolepis mast, 30 m (scaled)"
+)
+
+plot_me <- function(me, xlab) {
+  plot(me, show_ci = TRUE) +
+    labs(
+      x = xlab,
+      y = "Predicted number of incidents",
+      title = NULL
+    ) +
+    theme_minimal(base_size = 12)
+}
+
+plots <- Map(plot_me, me_list, pretty_labels[covariates])
 
