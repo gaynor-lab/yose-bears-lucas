@@ -2,7 +2,7 @@ library(ggplot2)
 library(dplyr)
 
 monthly_incidents <- read.csv("data_cleaned/monthly_incidents_all.csv") |> 
-  mutate(Month_Year = as.Date(paste0(Month_Year, "-01")))
+  mutate(Month_Year = as.Date(paste0(Year, "-", Month, "-01")))
 
 # Without points
 (time_series <- monthly_incidents %>%
@@ -20,7 +20,7 @@ monthly_incidents <- read.csv("data_cleaned/monthly_incidents_all.csv") |>
       expand = c(0, 0)) +
     scale_y_continuous(limits = c(0, 80)) +
     theme_classic() +
-    labs(x = "Month", y = "Number of Conflicts") +
+    labs(x = "Month", y = "Number of incidents") +
     theme(
       axis.text.x = element_text(angle = 60, hjust = 1),
       axis.title.x = element_blank(),
