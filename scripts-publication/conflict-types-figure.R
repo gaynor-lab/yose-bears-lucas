@@ -4,7 +4,7 @@ library(dplyr)
 
 # Bring in cleaned incident data
 incident_data <- read.csv("data_cleaned/cleaned_incidents_noRBDB.csv") |> 
-  filter(IncidentDate >= as.Date("2011-06-01"))
+  filter(IncidentDate >= as.Date("2011-01-01"))
 
 # Group some categories
 # Assigned the few "Bluff charge - defensive" and "Accidental encounter" into other categories based on description of incident

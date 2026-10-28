@@ -16,7 +16,7 @@ REF_MONTH <- 7  # July
 ## Helper: point predictions + simulation-based CI for a prediction grid
 ## -----------------------------------------------------------------
 predict_with_sim_ci <- function(model, newdata, n_sim = 50000) {
-  fit <- predict(model, newdata = newdata, type = "response")
+  fit <- predict(model, newdata = newdata, type = "response", re.form = NA)
   
   # Design matrices for BOTH components, again pulled from the fitted
   # model's own terms (so poly(time, 2) reuses its original coefficients
@@ -126,7 +126,7 @@ p_visitors <- ggplot(visitor_grid, aes(visitors_original, fit)) +
   scale_x_continuous(labels = label_number(scale = 1/1000)) +
   labs(x = "Visitors (x 1,000)", y = "Predicted incidents") +
   theme_classic()
-
+p_visitors
 ## -----------------------------------------------------------------
 ## 3. N30_KELLOGGII mast index, month fixed at October
 ## -----------------------------------------------------------------
@@ -176,7 +176,7 @@ p_chrys <- ggplot(chrys_grid, aes(N30_CHRYSOLEPIS_scaled, fit)) +
   theme_classic()
 
 ## -----------------------------------------------------------------
-## 5. Time (poly(time, 2)), month fixed at October
+## 5. Time (poly(time, 2)), month fixed at July
 ## -----------------------------------------------------------------
 time_grid <- data.frame(
   time                    = seq(min(incidents$time), max(incidents$time), length.out = 200),
@@ -214,7 +214,7 @@ p_time <- ggplot(time_grid, aes(time, fit)) +
   geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "darkolivegreen", alpha = 0.2) +
   geom_line(linewidth = 1, color = "darkolivegreen") +
   scale_x_continuous(breaks = time_breaks, labels = break_labels) +
-  labs(x = "Year", y = "Predicted incidents") +
+  labs(x = "Time", y = "Predicted incidents") +
   theme_classic()
 
 ## -----------------------------------------------------------------
@@ -267,7 +267,7 @@ multi_panel_plot <-
   )
 multi_panel_plot
 
-ggsave("figures/food_gam-marginal-effects.png", multi_panel_plot,
+ggsave("figures/annual/food/food_gam-marginal-effects.png", multi_panel_plot,
         width = 12, height = 8, dpi = 300)
 
 ## =================================================================
@@ -305,9 +305,9 @@ vis_scale_ <- attr(scale(incidents$visitors), "scaled:scale")
 
 visitor_grid <- data.frame(
   visitors_scaled         = seq(min(incidents$visitors_scaled), max(incidents$visitors_scaled), length.out = 100),
-  precip_1_12_scaled     = 0,
-  N30_KELLOGGII_scaled   = 0,
-  N30_CHRYSOLEPIS_scaled = 0,
+  precip_1_12_scaled      = 0,
+  N30_KELLOGGII_scaled    = 0,
+  N30_CHRYSOLEPIS_scaled  = 0,
   month_of_year           = REF_MONTH,
   time                    = median(incidents$time)
 )
@@ -409,7 +409,7 @@ p_time <- ggplot(time_grid, aes(time, fit)) +
   geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "navy", alpha = 0.2) +
   geom_line(linewidth = 1, color = "navy") +
   scale_x_continuous(breaks = time_breaks, labels = break_labels) +
-  labs(x = "Year", y = "Predicted incidents") +
+  labs(x = "Time", y = "Predicted incidents") +
   theme_classic()
 
 ## -----------------------------------------------------------------
@@ -451,5 +451,5 @@ multi_panel_plot <-
   )
 multi_panel_plot
 
-ggsave("figures/hbv_gam-marginal-effects.png", multi_panel_plot,
+ggsave("figures/annual/hbv/hbv_gam-marginal-effects.png", multi_panel_plot,
        width = 12, height = 8, dpi = 300)

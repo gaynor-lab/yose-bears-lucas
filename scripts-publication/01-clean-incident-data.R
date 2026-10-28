@@ -4,6 +4,7 @@ library(readr)
 library(readxl)
 library(stringr)
 library(tidyr)
+library(ggplot2)
 
 #---------------------------------------------------------
 # Read in human–bear conflict incidents & filter dates
@@ -130,29 +131,9 @@ write_csv(
   "data_cleaned/monthly_incidents_all.csv"
 )
 
----------------------
-  # Plot
-  library(ggplot2)
-library(dplyr)
-library(tidyr)
-library(lubridate)
-
-monthly_incidents_plot <- monthly_incidents_all %>%
-  mutate(Month_Year = ym(Month_Year)) %>%
-  dplyr::select(Month_Year, number_incidents, RBDB_incidents) %>%
-  pivot_longer(
-    cols = c(number_incidents, RBDB_incidents),
-    names_to = "Incident_Type",
-    values_to = "Incidents"
-  ) %>%
-  mutate(
-    Incident_Type = recode(
-      Incident_Type,
-      number_incidents = "Food-related incidents",
-      RBDB_incidents = "HBV incidents"
-    )
-  )
-
+#---------------------
+# Plot
+#---------------------
 ggplot(monthly_incidents_plot, aes(x = Month_Year, y = Incidents, color = Incident_Type)) +
   geom_line(linewidth = 1) +
   labs(

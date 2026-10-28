@@ -5,7 +5,7 @@ library(readr)
 library(patchwork)
 
 incident_full <- read.csv("data_cleaned/incidents_clean_with_bear_info.csv") |> 
-  filter(IncidentDate >= as.Date("2011-06-01")) %>%
+  filter(IncidentDate >= as.Date("2011-01-01")) %>%
   mutate(bear_id_status = case_when(
     !is.na(BearID)          ~ "Known", # only using known and "more certain"
     !is.na(BearID_uncertain) ~ "Uncertain", # for now, not including uncertain bears
@@ -27,7 +27,7 @@ incident_known |>
 
 # Count individual bears by sex
 incident_known |> 
-  select(BearID, Sex) |> 
+  dplyr::select(BearID, Sex) |> 
   unique() |> 
   count(Sex) |> 
   mutate(pct = n/length(unique(incident_known$BearID)) * 100)

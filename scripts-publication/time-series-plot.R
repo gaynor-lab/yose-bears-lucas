@@ -14,7 +14,7 @@ monthly_incidents <- read.csv("data_cleaned/monthly_incidents_all.csv") |>
     scale_color_manual(name = NULL,
       values = c("Food-related incidents" = "darkolivegreen", "Vehicle collisions" = "navy")) +
     scale_x_date(
-      limits = c(as.Date("2011-06-01"), as.Date("2026-01-01")),
+      limits = c(as.Date("2011-01-01"), as.Date("2026-01-01")),
       date_breaks = "6 months",
       date_labels = "%Y-%m",
       expand = c(0, 0)) +

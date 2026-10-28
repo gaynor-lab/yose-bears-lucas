@@ -42,12 +42,14 @@ ggplot(incidents, aes(x = Month, y = precip_total_inch)) +
   ) +
   theme_minimal()
 
-# filter to summer months (as defined by Meteorological summer: June 1-August 31)
+# filter to summer months (as defined by Meteorological summer: June 1-September )
 incidents_summer <- incidents %>% 
   filter(substr(Month_Year, 6, 7) %in% c("06", "07", "08", "09"))
 
 sum(incidents_summer$number_incidents)
 sum(incidents_summer$RBDB_incidents)
+sd(incidents_summer$visitors)
+sd(incidents_summer$precip_total_inch)
 
 # incidents_summer$Month_Year <- as.Date(paste0(incidents_summer$Month_Year, "-01"), format = "%Y-%m-%d")
 # 
@@ -228,10 +230,17 @@ testTemporalAutocorrelation(sim_res, time = incidents_yearly$time)
 plotResiduals(sim_res, incidents_yearly$time) # lower quantile significant
 acf(residuals(sim_res)) # all good
 
-# coefficient estimates
+# Export model table
+coef_df_full <- tidy(food_mod, effects = "fixed", conf.int = TRUE) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  dplyr::select(-c(effect, component, statistic))
+write.csv(coef_df_full, "figures/model_tables/food_summer_model_table.csv", row.names = FALSE)
+
+# Plot coefficient estimates
 coef_df <- tidy(food_mod, effects = "fixed", conf.int = TRUE) %>%
   filter(term != "(Intercept)") %>%  # usually excluded since it's on a different scale
   filter(!grepl("time", term))
+saveRDS(coef_df, "figures/temp/summer_food_df.rds")
 
 
 coef_plot_food <- ggplot(coef_df, aes(x = estimate, 
@@ -297,10 +306,19 @@ testTemporalAutocorrelation(sim_res, time = incidents_yearly$time)
 plotResiduals(sim_res, incidents_yearly$time) # all good
 acf(residuals(sim_res)) # all good
 
-# coefficient estimates
+
+# Export model table 
+coef_df_full <- tidy(hbv_mod, effects = "fixed", conf.int = TRUE) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  dplyr::select(-c(effect, component, statistic))
+write.csv(coef_df_full, "figures/model_tables/hbv_summer_model_table.csv", row.names = FALSE)
+
+# Plot coefficient estimates
 coef_df <- tidy(hbv_mod, effects = "fixed", conf.int = TRUE) %>%
   filter(term != "(Intercept)") %>%  # usually excluded since it's on a different scale
   filter(!grepl("time", term))
+
+saveRDS(coef_df, "figures/temp/summer_hbv_df.rds")
 
 coef_plot_hbv <- ggplot(coef_df, aes(x = estimate, 
                     y = reorder(dplyr::recode(term,
@@ -316,7 +334,7 @@ coef_plot_hbv <- ggplot(coef_df, aes(x = estimate,
   theme_classic()
 coef_plot_hbv
 
-ggsave("figures/hbv_summer-coef_plot.png", coef_plot_food,
+ggsave("figures/hbv_summer-coef_plot.png", coef_plot_hbv,
        width = 8, height = 5, dpi = 300)
 
 # observed vs predicted

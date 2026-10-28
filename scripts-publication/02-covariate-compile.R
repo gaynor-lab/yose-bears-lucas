@@ -25,7 +25,7 @@ monthly_incidents_all <- read_csv("data_cleaned/monthly_incidents_all.csv")
 
 # Mesonet data for USW00053150 (Yosemite Village) (NOAA monthly data had too many NAs, so using Mesonet)
 # I tried NOAA daily values and summarizing but the Mesonet data does some quality control) 
-# Yosemite HQ weather station would be preffered but too many NAs, Yosemite Village is 2nd best option (compared to the 3 stations in the park) (Mesonet only had Yosemite HQ)
+# https://mesonet2.agron.iastate.edu/sites/monthlysum.php?station=53150&network=USCRN
 
 # Month abbreviation -> zero-padded number
 month_map <- c(Jan="01", Feb="02", Mar="03", Apr="04", May="05", Jun="06",
