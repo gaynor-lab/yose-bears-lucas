@@ -10,7 +10,7 @@ library(readr)
 library(readxl)
 
 # -----------------------------------------------------------------------------
-# 1. Load and parse bear ID data
+# Load and parse bear ID data
 # -----------------------------------------------------------------------------
 
 # Incidents 1990–2023
@@ -35,7 +35,7 @@ incident_bear_2025 <- read_xlsx("data_raw/incidents_2025_ID.xlsx") %>%
 incident_bear_all <- bind_rows(incident_bear_2023, incident_bear_2025)
 
 # -----------------------------------------------------------------------------
-# 2. Join bear ID data to cleaned incident records
+# Join bear ID data to cleaned incident records
 # -----------------------------------------------------------------------------
 
 all_noID <- read_csv("data_cleaned/cleaned_incidents_noRBDB.csv")
@@ -52,7 +52,7 @@ all_matching <- all_noID %>%
   select(-Certainty)
 
 # -----------------------------------------------------------------------------
-# 3. Correct known bear ID errors
+# Correct known bear ID errors
 # -----------------------------------------------------------------------------
 
 all_matching <- all_matching %>%
@@ -63,7 +63,7 @@ all_matching <- all_matching %>%
   )
 
 # -----------------------------------------------------------------------------
-# 4. Filter to bear-identified incidents and expand to one row per bear ID
+# Filter to bear-identified incidents and expand to one row per bear ID
 # -----------------------------------------------------------------------------
 
 # Keep only incidents with at least one bear ID; unnest so each bear gets its own row
@@ -72,7 +72,7 @@ incident_bear_long <- all_matching %>%
   unnest(bearID_extracted)
 
 # -----------------------------------------------------------------------------
-# 5. Load bear capture data (has metadata on bear IDs) to match with incident data
+# Load bear capture data (has metadata on bear IDs) to match with incident data
 # -----------------------------------------------------------------------------
 
 meta_all <- bind_rows(
@@ -97,7 +97,7 @@ meta_all <- bind_rows(
   distinct(`Bear ID`, .keep_all = TRUE)
 
 # -----------------------------------------------------------------------------
-# 6. Join bear metadata to incident records
+# Join bear metadata to incident records
 # -----------------------------------------------------------------------------
 
 incident_meta <- incident_bear_long %>%
@@ -106,7 +106,7 @@ incident_meta <- incident_bear_long %>%
   mutate(est_age = year(IncidentDate) - as.numeric(est_year_born))
 
 # -----------------------------------------------------------------------------
-# 7. Clean up for analyses: consider Bear ID in analyses if it is not uncertain, or is "more certain"
+# Clean up for analyses: consider Bear ID in analyses if it is not uncertain, or is "more certain"
 # -----------------------------------------------------------------------------
 incident_meta_filtered <- incident_meta %>%
   mutate(
@@ -124,7 +124,7 @@ incident_meta_filtered <- incident_meta %>%
   select(-c("BearID_notes", "Bear ID", "has_bear", "has_uncertain", "more_certain"))
 
 # -----------------------------------------------------------------------------
-# 8. Merge with full cleaned incident data and write output
+# Merge with full cleaned incident data and write output
 # -----------------------------------------------------------------------------
 incident_full <- all_noID %>%
   left_join(

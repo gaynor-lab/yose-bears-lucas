@@ -372,7 +372,7 @@ ggsave("figures/annual/food/food_obs-pred.png", obs_pred_food,
 incidents$predicted <- predict(HBV_full_gam, type = "response")
 
 obs_pred_hbv <- ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
-  geom_line(aes(y = number_incidents, color = "Observed"), linewidth = .7) +
+  geom_line(aes(y = RBDB_incidents, color = "Observed"), linewidth = .7) +
   geom_line(aes(y = predicted, color = "Predicted"), linewidth = 1) +
   labs(
     y = "Incidents",

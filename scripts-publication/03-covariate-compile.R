@@ -4,21 +4,10 @@ library(tidyr)
 library(readr)
 library(ggplot2)
 library(lubridate)
+library(zoo)
 
 monthly_incidents_all <- read_csv("data_cleaned/monthly_incidents_all.csv")
 
-#---------------------------------------------------------
-# NDVI/EVI data
-#---------------------------------------------------------
-# ndvi_evi <- read_csv("data_raw/YosemiteValley_NDVI_EVI_monthly_2010_2025.csv") %>%
-#   mutate(
-#     date = as.Date(date),
-#     Month_Year = format(date, "%Y-%m")
-#   ) %>% 
-#   select(Month_Year, evi_mean, ndvi_mean)
-# 
-# monthly_incidents_all <- monthly_incidents_all %>%
-#   left_join(ndvi_evi, by = "Month_Year")
 #---------------------------------------------------------
 # Climate data
 #---------------------------------------------------------
@@ -27,51 +16,28 @@ monthly_incidents_all <- read_csv("data_cleaned/monthly_incidents_all.csv")
 # I tried NOAA daily values and summarizing but the Mesonet data does some quality control) 
 # https://mesonet2.agron.iastate.edu/sites/monthlysum.php?station=53150&network=USCRN
 
-# Month abbreviation -> zero-padded number
 month_map <- c(Jan="01", Feb="02", Mar="03", Apr="04", May="05", Jun="06",
                Jul="07", Aug="08", Sep="09", Oct="10", Nov="11", Dec="12")
 
-# Sheet names and how many rows to skip before the header row
-# precip_total_inch has a blank row above the header; the other two don't
-sheet_config <- list(
-  list(name = "precip_total_inch", skip = 0),
-  list(name = "avg_temp_high_f",   skip = 0),
-  list(name = "avg_tmp_f",         skip = 0)
-)
-
-reshape_sheet <- function(cfg) {
-  df <- read_excel(
-    "data_raw/mesonet_climate.xlsx",
-    sheet = cfg$name,
-    skip  = cfg$skip,
-    na    = "M"
-  )
-  
-  df |>
-    mutate(Year = as.integer(Year)) |>
-    pivot_longer(
-      cols      = -Year,
-      names_to  = "month_abbr",
-      values_to = cfg$name
-    ) |>
-    mutate(
-      Month_Year = paste0(Year, "-", month_map[month_abbr])
-    ) |>
-    dplyr::select(Month_Year, all_of(cfg$name))
-}
-
-# Reshape each sheet and join on Month_Year
-dfs <- lapply(sheet_config, reshape_sheet)
-
-mesonet_long <- dfs[[1]] |>
-  full_join(dfs[[2]], by = "Month_Year") |>
-  full_join(dfs[[3]], by = "Month_Year") |>
+mesonet_long <- read_excel(
+  "data_raw/mesonet_climate.xlsx",
+  sheet = "precip_total_inch",
+  na    = "M"
+) |>
+  mutate(Year = as.integer(Year)) |>
+  pivot_longer(
+    cols      = -Year,
+    names_to  = "month_abbr",
+    values_to = "precip_total_inch"
+  ) |>
+  mutate(Month_Year = paste0(Year, "-", month_map[month_abbr])) |>
+  dplyr::select(Month_Year, precip_total_inch) |>
   arrange(Month_Year)
 
-# Fill in the 2 missing precip. values
+# Fill in the 2 missing precip. values during study period 
 
-  # Take average of januarys and februarys across years 
-  # No surrounding weather stations had January 2025 data
+# Take average of januarys and februarys across years 
+# No surrounding weather stations had January 2025 data
 jan_mean <- mesonet_long %>%
   filter(grepl("-01$", Month_Year)) %>%
   summarize(mean_precip = mean(precip_total_inch, na.rm = TRUE)) %>%
@@ -84,80 +50,33 @@ feb_mean <- mesonet_long %>%
 
 
 # Replace missing precipitation values
-  mesonet_long <- mesonet_long %>%
-    mutate(
-      precip_total_inch = case_when(
-        Month_Year == "2025-01" & is.na(precip_total_inch) ~ jan_mean,
-        Month_Year == "2025-02" & is.na(precip_total_inch) ~ feb_mean,
-        TRUE ~ precip_total_inch
-      )
+mesonet_long <- mesonet_long %>%
+  mutate(
+    precip_total_inch = case_when(
+      Month_Year == "2025-01" & is.na(precip_total_inch) ~ jan_mean,
+      Month_Year == "2025-02" & is.na(precip_total_inch) ~ feb_mean,
+      TRUE ~ precip_total_inch
     )
+  )
 
 monthly_incidents_all <- monthly_incidents_all %>%
   left_join(mesonet_long, by = "Month_Year")
 
 #---------------------------------------------------------
-# Snow 
+# Create precipitation lag variable (over previous 1-12 monthly)
 #---------------------------------------------------------
-# Note: tried to look into snow data but found all existing sources to be incomplete
-# Both NOAA snow data Yosemite snow depth surveys only for a few months per year (and can't say for certain what other months looked liked)
+prior_precipitation <- mesonet_long %>%
+  arrange(Month_Year) %>%
+  mutate(
+    # sum of precip over months t-12 through t-1
+    precip_1_12 = dplyr::lag(
+      rollsumr(precip_total_inch, k = 12, fill = NA),
+      n = 1
+    )
+  ) %>%
+  dplyr::select(Month_Year, precip_1_12)
 
-#---------------------------------------------------------
-# Water flow data (similar idea as snow-- amount of water flow in spring should be based off snow melt)
-#---------------------------------------------------------
-url <- "https://waterservices.usgs.gov/nwis/dv/?site=11266500&format=rdb&parameterCd=00060&statCd=00003&startDT=2009-01-01&endDT=2026-06-08"
-# USGS; merced river at pohono bridge (site 11266500); Discharge measures in cubic feet per second (mean per day)
-
-merced <- read.delim(url, comment.char = "#", header = TRUE, sep = "\t") %>%
-  slice(-1) %>%
-  rename(daily_flow = X327887_00060_00003) %>%
-  mutate(datetime = as.Date(datetime),
-         daily_flow = as.numeric(daily_flow),
-         Month_Year = format(datetime, "%Y-%m")) %>%
-  group_by(Month_Year) %>%
-  summarize(avg_flow = mean(daily_flow, na.rm = TRUE)) %>%
-  ungroup()
-
-head(merced)
-
-monthly_incidents_all <- monthly_incidents_all %>%
-  left_join(merced, by = "Month_Year")
-
-
-#---------------------------------------------------------
-# Acorn data
-#---------------------------------------------------------
-# acorn_data <- read_csv("./data_raw/acorn_data/yosemitevalley_2025.csv")
-# 
-# acorn_wide <- acorn_data %>%
-#   pivot_wider(
-#     names_from = SPECIES,
-#     values_from = -c(YEAR, LOC, SPECIES),
-#     names_sep = "_"
-#   ) %>%
-#   dplyr::select(YEAR, N30_CHRYSOLEPIS, N30_KELLOGGII) #canyon live oak is CHRYSOLEPIS #black oak is KELLOGGII
-# 
-# monthly_incidents_all <- monthly_incidents_all %>%
-#   left_join(acorn_wide, by = c("Year" = "YEAR")) %>%
-#   mutate(
-#     Month_Num = month(ym(Month_Year)),
-#     across(
-#       c(N30_CHRYSOLEPIS, N30_KELLOGGII),
-#       ~ ifelse(Month_Num %in% c(9, 10, 11, 12), ., 0) # acorns only available september - december # consider putting decay on this 
-#     )
-#   ) %>%
-#   select(-Month_Num)
-
-
-
-# In both cases, the acorns of trees with larger initial crops were present in the canopy for longer than trees with smaller acorn crops.
-
-# From walts study in Hastings, California (different env. than yosemite)
-# can also cite for life history on acorns maturing and falling : https://research.fs.usda.gov/download/treesearch/1548.pdf
-# Canyon live oak: increases a bit in October, decreases to about half in November and 1/2 in december
-# California black oak decreases linearly from September by ~ 5 acorns/month (half its value in october) # drop quicker than the live oaks  
-# California black oak acorns fall mid-September at higher elevations (from USDA)
-# valley, blue oak, oregon oaks are also common in Yosemite and have their own acorn phenology 
+monthly_incidents_all <- left_join(monthly_incidents_all, prior_precipitation, by = "Month_Year")
 
 #---------------------------------------------------------
 # Acorn data
@@ -170,20 +89,18 @@ acorn_wide <- acorn_data %>%
     values_from = -c(YEAR, LOC, SPECIES),
     names_sep = "_"
   ) %>%
-  dplyr::select(YEAR, N30_CHRYSOLEPIS, N30_KELLOGGII)
+  dplyr::select(YEAR, N30_CHRYSOLEPIS, N30_KELLOGGII) 
 
 # ---------------------------------------------------------------------------
-# Phenology multipliers (proportion of September survey value available)
-# Applied to raw acorn counts from the September survey.
-#
-# All other months than 9-12: hard zero (acorns not available)
+# Acorn phenology "multipliers": Take the value from the September survey as is, then estimate acorn availability for months 10-12 based on Koenig et al. 2014
+# All other months than 9-12: zero (acorns not available)
 #
 # NOTE: These multipliers are literature-derived (Walt's Hastings study).
 # Walt's study is in coastal california, so phenology is likely different with elevation; 
 # but we also looked at https://research.fs.usda.gov/download/treesearch/1548.pdf for tree life history and this matches up 
 
-# Methods: I extracted the raw data for September-November (rest of months were 0) Fig 1 (10.3120/0024-9637-61.2.151) using WebPlotDigitizer for both canyon live oak and california black oak
-# then i made a "multiplier" system by dividing each month by the starting value in September per tree species. 
+# Methods: To obtain the "multiplier values" we extracted the raw data for September-December (rest of months were 0) from Figure 1 (10.3120/0024-9637-61.2.151) 
+# using WebPlotDigitizer for both canyon live oak and california black oak species, then divided October-December by the starting value in September per tree species. 
 # ---------------------------------------------------------------------------
 
 acorn_phenology <- list(
@@ -221,21 +138,27 @@ monthly_incidents_all <- monthly_incidents_all %>%
   ) %>%
   dplyr::select(-Month_Num)
 
-#Visualize
-monthly_incidents_all %>%
+# Visualize
+acorn_plot <- monthly_incidents_all %>%
   mutate(Date = ym(Month_Year)) %>%
+  filter(Date >= ym("2011-09"), Date <= ym("2025-12")) %>%
   pivot_longer(
     cols = c(N30_CHRYSOLEPIS, N30_KELLOGGII),
     names_to  = "Species",
     values_to = "Acorns"
   ) %>%
   mutate(Species = dplyr::recode(Species,
-                          N30_CHRYSOLEPIS = "Canyon live oak",
-                          N30_KELLOGGII   = "California black oak"
+                                 N30_CHRYSOLEPIS = "Canyon live oak",
+                                 N30_KELLOGGII   = "California black oak"
   )) %>%
   ggplot(aes(x = Date, y = Acorns, colour = Species)) +
   geom_line(linewidth = 0.7) +
-  scale_x_date(date_breaks = "6 months", date_labels = "%b %Y") +
+  scale_x_date(
+    date_breaks = "6 months",
+    date_labels = "%b %Y",
+    limits = c(ym("2011-09"), ym("2025-12")),
+    expand = c(0, 0)
+  ) +
   scale_colour_manual(values = c("Canyon live oak" = "#D55E00",
                                  "California black oak" = "#0072B2")) +
   labs(
@@ -243,13 +166,14 @@ monthly_incidents_all %>%
     y       = "Acorn count",
     colour  = NULL,
   ) +
-  theme_bw() +
+  theme_classic() +
   theme(
-    legend.position   = "top",
-    axis.text.x       = element_text(angle = 45, hjust = 1),
-    panel.grid.minor  = element_blank()
+    legend.position = "top",
+    axis.text.x     = element_text(angle = 45, hjust = 1)
   )
- 
+
+ggsave("figures/acorns_over_time.png", plot = acorn_plot, width = 8, height = 5, units = "in", dpi = 300)
+
 #---------------------------------------------------------
 # Visitation data
 #---------------------------------------------------------
@@ -273,152 +197,17 @@ monthly_incidents_all <- monthly_incidents_all %>%
   left_join(visitation_long, by = "Month_Year")
 
 #---------------------------------------------------------
-# Create lags in environmental data
-# Computed on raw covariate data BEFORE joining with incidents
-# so lagged values are available even for months with no incident rows
-# Based on CCF in code chunk below 
+# Clean up data frame 
 #---------------------------------------------------------
+monthly_incidents_final <- monthly_incidents_all %>%
+  select(-precip_total_inch) %>%
+  rename(food_incidents = number_incidents) %>%
+  filter(Month_Year >= "2011-01", Month_Year <= "2025-12")
 
-# ── Helper function: build a single lagged-window covariate ──────────────────
-# agg_fun should be `sum` (precip) or `mean` (flow, temp)
-make_lag_window <- function(df, var, start, end, agg_fun = mean) {
-  lag_list <- lapply(start:end, function(l) dplyr::lag(df[[var]], l))
-  mat <- do.call(cbind, lag_list)
-  apply(mat, 1, agg_fun, na.rm = TRUE)
-}
-
-# ── Define all lag windows once, reused across variables ─────────────────────
-# Start values range 2-4 months (short-term onset), end values extend
-# progressively further out to capture short- through long-term effects.
-# Starting/ending values can repeat across windows (e.g., 2_6 and 3_6).
-
-windows <- list(
-  "1_3"   = c(1, 3),
-  "1_4"   = c(1, 4),
-  "1_6"   = c(1, 6),
-  "1_9"   = c(1, 9),
-  "1_12"   = c(1, 12),
-  "2_4"   = c(2, 4),
-  "2_6"   = c(2, 6),
-  "2_9"   = c(2, 9),
-  "2_12"  = c(2, 12),
-  "3_5"   = c(3, 5),
-  "3_6"   = c(3, 6),
-  "3_9"   = c(3, 9),
-  "3_12"  = c(3, 12),
-  "4_6"   = c(4, 6),
-  "4_9"   = c(4, 9),
-  "4_12"  = c(4, 12)
-)
-
-# ── Variables to lag, with their aggregation function ─────────────────────────
-vars <- list(
-  precip = list(col = "precip_total_inch", fun = sum),
-  flow   = list(col = "avg_flow",          fun = mean),
-  temp   = list(col = "avg_tmp_f",         fun = mean)
-)
-
-# ── Build the joined base dataframe first ─────────────────────────────────────
-lagged_base <- mesonet_long %>%
-  full_join(merced, by = "Month_Year") %>%
-  arrange(Month_Year)
-
-# ── Generate all lagged covariates programmatically ───────────────────────────
-lagged_covariates <- lagged_base
-
-for (vname in names(vars)) {
-  col     <- vars[[vname]]$col
-  agg_fun <- vars[[vname]]$fun
-  
-  for (wname in names(windows)) {
-    start <- windows[[wname]][1]
-    end   <- windows[[wname]][2]
-    new_col <- paste0(vname, "_", wname)
-    
-    lagged_covariates[[new_col]] <- make_lag_window(
-      lagged_base, col, start, end, agg_fun
-    )
-  }
-}
-
-# ── Keep only Month_Year + generated lag columns ──────────────────────────────
-lag_cols <- unlist(lapply(names(vars), function(v) paste0(v, "_", names(windows))))
-
-lagged_covariates <- lagged_covariates %>%
-  dplyr::select(Month_Year, all_of(lag_cols))
-
-lagged_data <- left_join(monthly_incidents_all, lagged_covariates)
-
-
-write_csv(lagged_data, "data_cleaned/monthly_incidents_covar_cleaned.csv")
+write_csv(monthly_incidents_final, "data_cleaned/monthly_incidents_covar_cleaned.csv")
 
 # Check NA's
-data_na <- lagged_data %>%
-  filter(if_any(everything(), is.na))
-data_na  #none!
+data_na <- monthly_incidents_final %>%
+  filter(if_any(c(precip_1_12, N30_CHRYSOLEPIS, N30_KELLOGGII, visitors), is.na))
+data_na # none
 
-#---------------------------------------------------------
-# Look at Cross Correlations (CCF) for lags 
-#---------------------------------------------------------
-# For each lag k, it asks: how correlated is precipitation at time t with incidents at time t+k?
-# It slides one series forward and backward in time and computes correlation at each offset. 
-# identifies which variable leads or lags the other, allowing you to find the exact delay (in time steps) where the correlation between the two sequences peaks
-# this isn't perfect for lag because of the seasonal cycles (temperature and conflict both peak in summer, but that doesn't mean temperature is causing conflict in the way a lagged effect would)
-
-ccf_df <- monthly_incidents_all %>%
-  arrange(Month_Year) %>%
-  filter(!is.na(number_incidents), !is.na(precip_total_inch))
-
-ccf(ccf_df$precip_total_inch, ccf_df$number_incidents, 
-    lag.max = 12, main = "Precip vs. Incidents CCF") #4-7
-
-ccf(ccf_df$avg_tmp_f, ccf_df$number_incidents, 
-    lag.max = 12, main = "Temperature vs. Incidents CCF") #4-8
-
-ccf(ccf_df$avg_flow, ccf_df$number_incidents, 
-    lag.max = 12, main = "Flow vs. Incidents CCF")
-
-# Look at CCF of anomalies
-# Step 1: compute climatological monthly means
-climate_means <- monthly_incidents_all %>%
-  mutate(Month_Num = as.integer(substr(Month_Year, 6, 7))) %>%
-  group_by(Month_Num) %>%
-  summarize(
-    mean_temp   = mean(avg_tmp_f,          na.rm = TRUE),
-    mean_precip = mean(precip_total_inch,   na.rm = TRUE),
-    mean_flow = mean(avg_flow, na.rm = TRUE)
-  )
-
-# Step 2: compute anomalies and join with incidents
-anomaly_ccf_data <- mesonet_long %>%
-  full_join(merced, by = "Month_Year") %>%
-  mutate(Month_Num = as.integer(substr(Month_Year, 6, 7))) %>%
-  left_join(climate_means, by = "Month_Num") %>%
-  mutate(
-    temp_anomaly   = avg_tmp_f        - mean_temp,
-    precip_anomaly = precip_total_inch - mean_precip,
-    flow_anomaly   = avg_flow          - mean_flow
-  ) %>%
-  left_join(monthly_incidents_all %>% dplyr::select(Month_Year, total_incidents),
-            by = "Month_Year") %>%
-  arrange(Month_Year) %>%
-  filter(!is.na(total_incidents))
-
-# Step 3: CCF plots on anomalies
-par(mfrow = c(1, 3))
-
-ccf(anomaly_ccf_data$precip_anomaly, anomaly_ccf_data$total_incidents,
-    lag.max = 12, na.action = na.pass,
-    main = "Precip anomaly vs. Incidents")
-
-ccf(anomaly_ccf_data$temp_anomaly, anomaly_ccf_data$total_incidents,
-    lag.max = 12, na.action = na.pass,
-    main = "Temp anomaly vs. Incidents")
-
-ccf(anomaly_ccf_data$flow_anomaly, anomaly_ccf_data$total_incidents,
-    lag.max = 12, na.action = na.pass,
-    main = "Flow anomaly vs. Incidents")
-
-par(mfrow = c(1, 1))
-
-# To determine appropriate lag windows, we used cross-correlation functions (CCF) on monthly anomalies — computed by subtracting the long-term climatological mean for each calendar month — to remove shared seasonal structure and isolate interannual variation in the lead-lag relationship between each covariate and conflict incidents. Precipitation anomalies showed a consistent positive association with conflict at lags 3–7 months, suggesting that anomalously wet spring and early summer conditions drive plant productivity whose subsequent depletion pushes bears into developed areas. River flow anomalies showed a similar signal over the same window, reflecting snowmelt-driven riparian and meadow productivity. We therefore operationalized precipitation as a cumulative sum and flow as a mean across lags 3–7 months. Temperature anomalies showed no positive predictive signal at any lag after removing seasonality and were excluded.

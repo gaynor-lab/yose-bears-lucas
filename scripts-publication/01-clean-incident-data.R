@@ -10,23 +10,21 @@ library(ggplot2)
 # Read in human–bear conflict incidents & filter dates
 #---------------------------------------------------------
 # Load incident data provided by Park
-incident_data <- read_excel("data_raw/Incidents_2005-2025.xlsx") 
+incident_data <- read_excel("data_raw/Incidents_2005-2025.xlsx")  # through December 2025 --> no conflicts after 2025-10-05 (fill in 0s for 2025-11 and 2025-12)
 
-# filter to include June 2011 and beyond
+# filter to include 2011 and beyond
 incident_data <- incident_data %>%
-  filter(IncidentDate >= as.POSIXct("2011-06-01"))
-
-unique(incident_data$IncidentTypeDesc)
+  filter(IncidentDate >= as.POSIXct("2011-01-01"))
 
 #---------------------------------------------------------
 # Remove non-food or property related incidents
 #---------------------------------------------------------
 # Look through bluff charge incidents to see which to keep/remove:
-bluff <- incident_data %>%
-  filter(str_detect(BlameFactorDesc, regex("bluff charge", ignore_case = TRUE)) |
-           str_detect(IncidentTypeDesc, regex("bluff charge", ignore_case = TRUE)))
+# bluff <- incident_data %>%
+#   filter(str_detect(BlameFactorDesc, regex("bluff charge", ignore_case = TRUE)) |
+#            str_detect(IncidentTypeDesc, regex("bluff charge", ignore_case = TRUE)))
 
-# Remove bluff charges occuring from "natural" bear behavior
+# Based on descriptions in dataframe "bluff" above, remove bluff charges occuring from "natural" bear behavior
   # while keeping conflicts labelled as "bluff charges" that started with bear obtaining human food/trash or causing other property damage
 bluff_keep_ids <- c(1908, 2442, 2705, 2846, 6445, 6476, 6531, 6599, 7798, 8144) # exception cases; found  from filter search above
 
@@ -72,51 +70,54 @@ write_csv(
 #---------------------------------------------------------
 # Create monthly conflict summaries
 #---------------------------------------------------------
-
 monthly_incidents <- incident_data %>%
   count(Month, name = "number_incidents") %>%
-  mutate(Month = ym(Month))
+  mutate(Month = as.character(Month))
 
 full_months <- tibble(
-  Month = seq(
-    from = ymd("2010-01-01"),
-    to = ymd("2025-12-31"),
-    by = "month"
+  Month = format(
+    seq(from = ymd("2010-01-01"), to = ymd("2025-12-01"), by = "month"), # from 2010 because we will be extracting precipitation from year prior in `02-covariate-compile.R`
+    "%Y-%m"
   )
 )
 
 monthly_incidents <- full_months %>%
   left_join(monthly_incidents, by = "Month") %>%
   mutate(
-    number_incidents = replace_na(number_incidents, 0),
-    Month = factor(format(Month, "%Y-%m"))
+    number_incidents = case_when(
+      Month < "2011-01" ~ NA_integer_, #before 2011, should be NA; after 2011, should be 0
+      is.na(number_incidents) ~ 0L,
+      TRUE ~ number_incidents
+    ),
+    Month = factor(Month, levels = unique(Month))
   )
 
 #---------------------------------------------------------
 # Add Red Bear Dead Bear (RBDB) vehicle-collision data
 #---------------------------------------------------------
-
-RBDB_data <- read_csv("./data_raw/RBDB Data 1995-2025.csv") %>%
+RBDB_data <- read_csv("./data_raw/RBDB Data 1995-2025.csv") %>% # also ends 12-2025 (no conflicts after 10-2025)
   mutate(
     DATE = as.Date(DATE, format = "%Y-%m-%d"),
     year_month = format(DATE, "%Y-%m")
   ) %>%
-  filter(DATE > as.Date("2011-06-01")) %>%
+  filter(DATE >= as.Date("2011-01-01")) %>%
   distinct()
-
-# table(RBDB_data$DATE) # check for outlier dates
 
 RBDB_monthly_incidents <- RBDB_data %>%
   count(year_month, name = "RBDB_incidents")
 
-# Merge RBDB and non-vehicle conflict data
 monthly_incidents_all <- monthly_incidents %>%
+  mutate(Month = as.character(Month)) %>%
   left_join(
     RBDB_monthly_incidents,
     by = c("Month" = "year_month")
   ) %>%
   mutate(
-    RBDB_incidents = replace_na(RBDB_incidents, 0),
+    RBDB_incidents = case_when(
+      Month < "2011-01" ~ NA_integer_,
+      is.na(RBDB_incidents) ~ 0L,
+      TRUE ~ RBDB_incidents
+    ),
     total_incidents = number_incidents + RBDB_incidents
   ) %>%
   rename(Month_Year = Month) %>%
@@ -130,22 +131,3 @@ write_csv(
   monthly_incidents_all,
   "data_cleaned/monthly_incidents_all.csv"
 )
-
-#---------------------
-# Plot
-#---------------------
-ggplot(monthly_incidents_plot, aes(x = Month_Year, y = Incidents, color = Incident_Type)) +
-  geom_line(linewidth = 1) +
-  labs(
-    x = "Month",
-    y = "Number of incidents",
-    color = "Incident type"
-  ) +
-  scale_x_date(
-    date_breaks = "1 year",
-    date_labels = "%Y"
-  ) +
-  theme_classic() +
-  theme(
-    legend.position = "top"
-  )
