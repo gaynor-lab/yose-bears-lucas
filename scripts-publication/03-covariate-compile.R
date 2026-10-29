@@ -81,7 +81,7 @@ monthly_incidents_all <- left_join(monthly_incidents_all, prior_precipitation, b
 #---------------------------------------------------------
 # Acorn data
 #---------------------------------------------------------
-acorn_data <- read_csv("./data_raw/acorn_data/yosemitevalley_2025.csv")
+acorn_data <- read_csv("./data_raw/acorns_yosemitevalley_2025.csv")
 
 acorn_wide <- acorn_data %>%
   pivot_wider(
@@ -200,14 +200,13 @@ monthly_incidents_all <- monthly_incidents_all %>%
 # Clean up data frame 
 #---------------------------------------------------------
 monthly_incidents_final <- monthly_incidents_all %>%
-  select(-precip_total_inch) %>%
-  rename(food_incidents = number_incidents) %>%
-  filter(Month_Year >= "2011-01", Month_Year <= "2025-12")
-
-write_csv(monthly_incidents_final, "data_cleaned/monthly_incidents_covar_cleaned.csv")
+  rename(food_incidents = number_incidents)
 
 # Check NA's
 data_na <- monthly_incidents_final %>%
   filter(if_any(c(precip_1_12, N30_CHRYSOLEPIS, N30_KELLOGGII, visitors), is.na))
 data_na # none
+
+
+write_csv(monthly_incidents_final, "data_cleaned/monthly_incidents_covar_cleaned.csv")
 

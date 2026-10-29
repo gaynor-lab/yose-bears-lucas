@@ -50,7 +50,7 @@ plot_a_hbv <- ggplot(a_hbv %>%
 plot_s_food <- ggplot(s_food, aes(x = estimate, 
                                    y = reorder(dplyr::recode(term,
                                                              "visitors_scaled" = "Visitors",
-                                                             "growing_season_rain_scaled" = "Growing-season precipitation"
+                                                             "growing_season_precip_scaled" = "Growing-season precipitation"
                                    ), estimate))) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
   geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "darkolivegreen", size = 0.7) +
@@ -64,7 +64,7 @@ plot_s_food <- ggplot(s_food, aes(x = estimate,
 plot_s_hbv <- ggplot(s_hbv, aes(x = estimate, 
                                      y = reorder(dplyr::recode(term,
                                                                "visitors_scaled" = "Visitors",
-                                                               "growing_season_rain_scaled" = "Growing-season precipitation"
+                                                               "growing_season_precip_scaled" = "Growing-season precipitation"
                                      ), estimate))) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
   geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "navy", size = 0.7) +
@@ -142,7 +142,7 @@ plot_a_hbv <- ggplot(a_hbv_clean %>%
 plot_s_food <- ggplot(s_food_clean, aes(x = estimate, 
                                         y = reorder(dplyr::recode(term,
                                                                   "visitors_scaled" = "Visitors",
-                                                                  "growing_season_rain_scaled" = "Growing-season precipitation"
+                                                                  "growing_season_precip_scaled" = "Growing-season precipitation"
                                         ), estimate))) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
   geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "darkolivegreen", size = 0.7) +
@@ -153,7 +153,7 @@ plot_s_food <- ggplot(s_food_clean, aes(x = estimate,
 plot_s_hbv <- ggplot(s_hbv_clean, aes(x = estimate, 
                                       y = reorder(dplyr::recode(term,
                                                                 "visitors_scaled" = "Visitors",
-                                                                "growing_season_rain_scaled" = "Growing-season precipitation"
+                                                                "growing_season_precip_scaled" = "Growing-season precipitation"
                                       ), estimate))) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
   geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "navy", size = 0.7) +

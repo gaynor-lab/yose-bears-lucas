@@ -8,33 +8,35 @@ library(ggplot2)
 library(scales)    # label_number
 library(patchwork)
 
-source("scripts-publication/03-annual-model.R") # read in models
+source("scripts-publication/04-yearround-model.R") # read in models
 
 REF_MONTH <- 7  # July
 
 ## -----------------------------------------------------------------
 ## Helper: point predictions + simulation-based CI for a prediction grid
 ## -----------------------------------------------------------------
-predict_with_sim_ci <- function(model, newdata, n_sim = 50000) {
+predict_with_sim_ci <- function(model, newdata, n_sim = 50000,
+                                ref_days = 365.25 / 12) {  # avg month length (~30.44 d)
+  
+  # Offset variable must exist in newdata for predict() and model.frame().
+  # Predictions are then "incidents per average-length month".
+  if (!"days_month" %in% names(newdata)) newdata$days_month <- ref_days
+  
   fit <- predict(model, newdata = newdata, type = "response", re.form = NA)
   
-  # Design matrices for BOTH components, again pulled from the fitted
-  # model's own terms (so poly(time, 2) reuses its original coefficients
-  # rather than being refit on newdata).
   tt_cond <- delete.response(terms(model, component = "cond"))
   tt_zi   <- delete.response(terms(model, component = "zi"))
   X_cond  <- model.matrix(tt_cond, newdata)
   X_zi    <- model.matrix(tt_zi,   newdata)
   
+  # Offset on the log scale (NULL if the model has none, e.g. a model fit without it)
+  off_cond <- model.offset(model.frame(tt_cond, newdata))
+  if (is.null(off_cond)) off_cond <- 0
+  
   beta_cond <- fixef(model)$cond
   beta_zi   <- fixef(model)$zi
   beta_all  <- c(beta_cond, beta_zi)
   
-  # Joint covariance across cond + zi (+ dispersion, which we drop since it
-  # doesn't enter the mean function). This is the fix for the earlier gap:
-  # previously only V_cond was used, so CI uncertainty from the zi
-  # coefficients (which also vary by month) was silently dropped even
-  # though the point estimate is zi-adjusted.
   V_full <- vcov(model, full = TRUE)
   keep <- match(names(beta_all), rownames(V_full))
   if (anyNA(keep)) {
@@ -45,13 +47,22 @@ predict_with_sim_ci <- function(model, newdata, n_sim = 50000) {
   }
   V_sub <- V_full[keep, keep]
   
+  # Sanity check: manual point estimate should reproduce predict()
+  fit_manual <- as.numeric((1 - plogis(X_zi %*% beta_zi)) *
+                             exp(X_cond %*% beta_cond + off_cond))
+  if (!isTRUE(all.equal(fit_manual, as.numeric(fit), tolerance = 1e-6))) {
+    warning("Manual prediction doesn't match predict(); check offset/design matrices.")
+  }
+  
   draws <- mvrnorm(n = n_sim, mu = beta_all, Sigma = V_sub)
   beta_cond_draws <- draws[, seq_along(beta_cond), drop = FALSE]
   beta_zi_draws   <- draws[, length(beta_cond) + seq_along(beta_zi), drop = FALSE]
   
-  eta_cond_sim <- X_cond %*% t(beta_cond_draws)  # rows = newdata rows, cols = draws
+  # off_cond recycles down the columns (one value per newdata row)
+  eta_cond_sim <- X_cond %*% t(beta_cond_draws) + off_cond
   eta_zi_sim   <- X_zi   %*% t(beta_zi_draws)
-  mu_sim <- (1 - plogis(eta_zi_sim)) * exp(eta_cond_sim)  # full zi-adjusted mean
+  
+  mu_sim <- (1 - plogis(eta_zi_sim)) * exp(eta_cond_sim)
   
   newdata$fit <- fit
   newdata$lwr <- apply(mu_sim, 1, quantile, 0.025)

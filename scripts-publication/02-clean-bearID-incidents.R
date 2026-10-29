@@ -138,4 +138,3 @@ write_csv(incident_full, "data_cleaned/incidents_clean_with_bear_info.csv")
  
  
  
- 

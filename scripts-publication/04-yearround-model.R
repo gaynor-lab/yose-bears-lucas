@@ -1,41 +1,50 @@
 # =============================================================================
-# Model fitting
+# 04-yearround-model.R
+# Year-round models of black bear incidents in Yosemite
 # =============================================================================
-library(mgcv)
+# Fits negative binomial GLMMs (glmmTMB) of monthly incident counts for two
+# response types: food-related incidents and HBV incidents (stored in the
+# RBDB_incidents column). Covariates are visitation, prior precipitation, and
+# two oak indices. Each model also includes a cyclic seasonal spline, a
+# quadratic time trend, an AR(1) residual process, and a seasonal
+# zero-inflation component.
+#
+# Input:   data_cleaned/monthly_incidents_covar_cleaned.csv
+# Output:  figures/model_tables/{food,hbv}_annual_model_table.csv
+#          figures/temp/annual_{food,hbv}_df.rds
+#          figures/annual/{food,hbv}/*.png
+# =============================================================================
+# LOAD LIBRARIES
+# =============================================================================
 library(glmmTMB)
+library(mgcv)       
 library(DHARMa)
-library(ggplot2)
-library(MASS)
-library(dplyr)
-library(corrplot)
-library(purrr)
-library(readr)
-library(car)
-library(lubridate)
 library(broom.mixed)
-library(tidyr)
+library(dplyr)
+library(readr)
+library(lubridate)
+library(ggplot2)
 library(stringr)
 
 # =============================================================================
-# LOAD DATA, REMOVE COVID CLOSURE MONTHS & 2010
+# LOAD DATA, REMOVE COVID CLOSURE MONTHS AND 2010
 # =============================================================================
 incidents <- read_csv("data_cleaned/monthly_incidents_covar_cleaned.csv") %>% 
   mutate(
     Year  = as.factor(Year),
     Month = as.factor(Month)
-  ) %>%
-  filter(!Year == 2010)
+  ) 
 
 # March–June 2020 are excluded because Yosemite was closed to visitors during
 # this period, making visitation and incident counts unrepresentative of normal
-# conditions. Removing these 4 rows leaves 176 monthly observations.
-
+# conditions. Removing these 4 rows and 2010 leaves 176 monthly observations.
 incidents <- incidents %>%
-  filter(!(Month_Year %in% c("2020-03", "2020-04", "2020-05", "2020-06")))
+  filter(!(Month_Year %in% c("2020-03", "2020-04", "2020-05", "2020-06")),
+         Year != "2010") %>%
+  arrange(Month_Year)
 # =============================================================================
 # ADD OFFSET AND SCALE COVARIATES
 # =============================================================================
-
 # Add days per month — used as model offset to account for variation in
 # observation period length across months (28–31 days). This models incident
 # rate per day rather than raw count.
@@ -64,31 +73,17 @@ colnames(incidents) # checking
 # # COVARIATE COLLINEARITY: CORRELATION MATRIX
 # # =============================================================================
 # # Numeric correlation table
-incidents %>%
-  dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
-  cor(use = "complete.obs") %>%
-  round(2)
-# 
-# 
-# # Signed correlation plot
 # incidents %>%
-#   dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
+#   dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled) %>%
 #   cor(use = "complete.obs") %>%
-#   corrplot(
-#     method = "color",
-#     type   = "upper",
-#     tl.cex = 0.7,
-#     addCoef.col = "black",
-#     number.cex  = 0.6
-#   )
-# 
+#   round(2)
 # # =============================================================================
 # # COVARIATE CORRELATION GROUPED BY MONTH 
 # # =============================================================================
 # 
 # # Select relevant scaled variables
 # scaled_vars <- incidents %>%
-#   dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled, flow_1_12_scaled, temp_1_12_scaled) %>%
+#   dplyr::select(N30_CHRYSOLEPIS_scaled, N30_KELLOGGII_scaled, visitors_scaled, precip_1_12_scaled) %>%
 #   dplyr::select(-matches("N30|visitor")) %>%
 #   names()
 # 
@@ -125,7 +120,7 @@ incidents %>%
 # 
 # 
 # # =============================================================================
-# # WITHIN-MONTH INTERANNUAL VARIANCE
+# # ASSESS WITHIN-MONTH INTERANNUAL VARIANCE
 # # =============================================================================
 # # For each covariate, compute variance within each calendar month across years.
 # # High variance = more interannual signal available for modeling.
@@ -133,7 +128,7 @@ incidents %>%
 # # Visual: each line = one month, plotted across years per covariate
 # # Lines with high spread = high interannual variability within that month
 # incidents %>%
-#   dplyr::select(Month, Year, temp_1_12, flow_1_12, precip_1_12, visitors, N30_CHRYSOLEPIS, N30_KELLOGGII) %>%
+#   dplyr::select(Month, Year, precip_1_12, visitors, N30_CHRYSOLEPIS, N30_KELLOGGII) %>%
 #   tidyr::pivot_longer(c(-Month, -Year), names_to = "covariate", values_to = "value") %>%
 #   ggplot(aes(x = Year, y = value, group = Month, color = Month)) +
 #   geom_line() +
@@ -175,11 +170,12 @@ incidents$time_factor <- factor(
   1:nrow(incidents),
   levels = 1:nrow(incidents)
 )
+
 # =============================================================================
-# Assess zero-inflation structure
+# ASSESS ZERO-INFLATION STRUCTURE
 # =============================================================================
 # incidents %>%
-#   ggplot(aes(x = date, y = number_incidents)) +
+#   ggplot(aes(x = date, y = food_incidents)) +
 #   geom_line(color = "grey40") +
 #   geom_point(aes(color = Month), size = 1.8) +
 #   labs(
@@ -191,30 +187,46 @@ incidents$time_factor <- factor(
 
 # 0s in winter months (maybe the seasonal spline isn't this best for this then since only 1 part of year)
 
-# could consider doing this: sin(2*pi*month_of_year/12) + cos(2*pi*month_of_year/12), but for now will match the other spline structure
-
 # =============================================================================
-# GAMs for HBV and food incidents
+# GAMS FOR HBV AND FOOD INCIDENTS
 # =============================================================================
 incidents$dummy_grp <- factor(1, levels = 1)
 
-# Food-related incidents
+# -------------------------
+# Food
+# -------------------------
 food_full_gam <- glmmTMB(
-  number_incidents ~
+  
+  food_incidents ~
+    
+    # covariates of interest
     precip_1_12_scaled +
     visitors_scaled +
     N30_KELLOGGII_scaled +
-    N30_CHRYSOLEPIS_scaled +
-    s_month_1 + s_month_2 + s_month_3 + s_month_4 + # month basis functions
-    poly(time, 2) +  # add polynomial term for time
-    ar1(time_factor + 0 | dummy_grp),
+    N30_CHRYSOLEPIS_scaled + 
+    
+    
+    # month basis functions
+    s_month_1 + s_month_2 + s_month_3 + s_month_4 +
+    
+    # add polynomial term for time
+    poly(time, 2) +
+    
+    # autoregressive term
+    ar1(time_factor + 0 | dummy_grp) +
+    # Offset term
+    offset(log(days_month)),
+  
+  # zero-inflation formula
   ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
+  
   family = nbinom2,
   data = incidents
 )
 
-
+# -------------------------
 # HBV
+# -------------------------
 HBV_full_gam <- glmmTMB(
   
   RBDB_incidents ~
@@ -233,7 +245,9 @@ HBV_full_gam <- glmmTMB(
     poly(time, 2) +
     
     # autoregressive term
-    ar1(time_factor + 0 | dummy_grp),
+    ar1(time_factor + 0 | dummy_grp) +
+    # Offset term
+    offset(log(days_month)),
   
   # zero-inflation formula
   ziformula = ~ s_month_1 + s_month_2 + s_month_3 + s_month_4,
@@ -242,32 +256,33 @@ HBV_full_gam <- glmmTMB(
   data = incidents
 )
 
-sd(incidents$visitors, na.rm = TRUE)
-sd(incidents$precip_1_12, na.rm = TRUE)
+# =============================================================================
+# EXPORT MODEL TABLES
+# =============================================================================
 
 # -------------------------
-# Export model tables
+# Food
 # -------------------------
-# food
 coef_df_full <- tidy(food_full_gam, effects = "fixed", conf.int = TRUE) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   dplyr::select(-c(effect, statistic))
 write.csv(coef_df_full, "figures/model_tables/food_annual_model_table.csv", row.names = FALSE)
 
-
-
+# -------------------------
 # HBV
+# -------------------------
 coef_df_full2 <- tidy(HBV_full_gam, effects = "fixed", conf.int = TRUE) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   dplyr::select(-c(effect, statistic))
 write.csv(coef_df_full2, "figures/model_tables/hbv_annual_model_table.csv", row.names = FALSE)
 
-quantile(poly(incidents$time, 2))
-quantile(poly(incidents$time_scaled, 2))
+# =============================================================================
+# COEFFICIENT ESTIMATES
+# =============================================================================
+
 # -------------------------
-# Look at coefficient estimates
+# Food
 # -------------------------
-# food
 cond_eff_food <- broom.mixed::tidy(
   food_full_gam,
   effects = "fixed",
@@ -276,7 +291,6 @@ cond_eff_food <- broom.mixed::tidy(
   filter(!grepl("^s_month_", term))
 
 saveRDS(cond_eff_food, "figures/temp/annual_food_df.rds")
-
 
 coef_plot_food <- ggplot(cond_eff_food %>% 
                            filter(component == "cond") %>% 
@@ -303,7 +317,9 @@ coef_plot_food
 ggsave("figures/annual/food/food_GAM-coef_plot.png", coef_plot_food,
        width = 11, height = 7, dpi = 300)
 
+# -------------------------
 # HBV
+# -------------------------
 cond_eff_hbv <- broom.mixed::tidy(
   HBV_full_gam,
   effects = "fixed",
@@ -314,18 +330,18 @@ cond_eff_hbv <- broom.mixed::tidy(
 saveRDS(cond_eff_hbv, "figures/temp/annual_hbv_df.rds")
 
 coef_plot_hbv <- ggplot(cond_eff_hbv %>% 
-                           filter(component == "cond") %>% 
-                           filter(!str_detect(term, "Intercept|poly\\(time")) %>%
-                           mutate(term = dplyr::recode(term,
-                                                       "visitors_scaled" = "Visitors",
-                                                       "precip_1_12_scaled" = "Prior precipitation",
-                                                       "N30_CHRYSOLEPIS_scaled" = "Canyon live oak index",
-                                                       "N30_KELLOGGII_scaled" = "California black oak index"),
-                                  term = factor(term, levels = rev(c("Visitors", 
-                                                                     "Prior precipitation", 
-                                                                     "Canyon live oak index", 
-                                                                     "California black oak index")))),
-                         aes(x = estimate, y = term)) +
+                          filter(component == "cond") %>% 
+                          filter(!str_detect(term, "Intercept|poly\\(time")) %>%
+                          mutate(term = dplyr::recode(term,
+                                                      "visitors_scaled" = "Visitors",
+                                                      "precip_1_12_scaled" = "Prior precipitation",
+                                                      "N30_CHRYSOLEPIS_scaled" = "Canyon live oak index",
+                                                      "N30_KELLOGGII_scaled" = "California black oak index"),
+                                 term = factor(term, levels = rev(c("Visitors", 
+                                                                    "Prior precipitation", 
+                                                                    "Canyon live oak index", 
+                                                                    "California black oak index")))),
+                        aes(x = estimate, y = term)) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
   geom_pointrange(aes(xmin = conf.low, xmax = conf.high), color = "navy", size = 0.7) +
   labs(
@@ -337,14 +353,18 @@ coef_plot_hbv
 
 ggsave("figures/annual/hbv/HBV_GAM-coef_plot.png", coef_plot_hbv,
        width = 11, height = 7, dpi = 300)
-# -------------------------
-# Observed vs predicted
+
+# =============================================================================
+# OBSERVED VS PREDICTED
+# =============================================================================
+
 # -------------------------
 # Food
+# -------------------------
 incidents$predicted <- predict(food_full_gam, type = "response")
 
 obs_pred_food <- ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
-  geom_line(aes(y = number_incidents, color = "Observed"), linewidth = .7) +
+  geom_line(aes(y = food_incidents, color = "Observed"), linewidth = .7) +
   geom_line(aes(y = predicted, color = "Predicted"), linewidth = 1) +
   labs(
     y = "Incidents",
@@ -368,7 +388,9 @@ obs_pred_food
 ggsave("figures/annual/food/food_obs-pred.png", obs_pred_food,
        width = 10, height = 6, dpi = 300)
 
+# -------------------------
 # HBV
+# -------------------------
 incidents$predicted <- predict(HBV_full_gam, type = "response")
 
 obs_pred_hbv <- ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
@@ -391,14 +413,18 @@ obs_pred_hbv <- ggplot(incidents, aes(x = as.Date(paste0(Month_Year, "-01")))) +
   ) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+obs_pred_food
 obs_pred_hbv
 
 ggsave("figures/annual/hbv/hbv_obs-pred.png", obs_pred_hbv,
        width = 10, height = 6, dpi = 300)
 
 # =============================================================================
-# Diagnostics
+# DIAGNOSTICS
 # =============================================================================
+set.seed(123)
+
 # -------------------------
 # Food
 # -------------------------
@@ -419,7 +445,7 @@ testZeroInflation(sim_res)
 
 # temporal autocorrelation
 testTemporalAutocorrelation(sim_res, time = incidents$time)
-plotResiduals(sim_res, incidents$time) 
+plotResiduals(sim_res, incidents$time) # upper quantile deviated
 acf(residuals(sim_res)) 
 
 # Check residuals against individual predictors to spot remaining patterns
@@ -450,4 +476,3 @@ acf(residuals(sim_res))
 
 # Check residuals against individual predictors to spot remaining patterns
 plotResiduals(sim_res, incidents$Month) # all good
-
